@@ -1,0 +1,23 @@
+packages:
+  "recharts": "For admin dashboard usage statistics and charts"
+  "date-fns": "For formatting session times and calculating durations"
+  "lucide-react": "For beautiful UI icons across the application"
+  "react-hook-form": "For robust form state management and validation"
+  "@hookform/resolvers": "For Zod validation integration with react-hook-form"
+  "clsx": "For dynamic class name merging"
+  "tailwind-merge": "For resolving tailwind class conflicts securely"
+  "zod": "For schema validation on forms"
+
+images:
+  - path: "artifacts/library-system/public/images/kiosk-bg.png"
+    description: "Abstract elegant university library interior with soft dramatic lighting, dark navy and deep blue tones, shallow depth of field, premium institutional feel"
+    aspect_ratio: "16:9"
+  - path: "artifacts/library-system/public/images/logo.png"
+    description: "Minimalist modern geometric icon combining a book and a digital screen, solid white color on transparent background, premium and institutional"
+    aspect_ratio: "1:1"
+
+notes:
+  - Using localStorage to persist the active kiosk session across accidental page reloads.
+  - Using localStorage for the admin JWT token.
+  - Using setInterval for real-time polling of active sessions and computer status on the admin dashboard.
+  - Implemented client-side activity tracking (mouse/keyboard) for the kiosk auto-logout feature.

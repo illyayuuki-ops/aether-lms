@@ -1,0 +1,53 @@
+{
+  "name": "@workspace/kiosk-electron",
+  "version": "1.0.1",
+  "private": true,
+  "description": "Aether LMS — full-screen kiosk shell for library student PCs",
+  "author": "Aether LMS",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win --x64",
+    "build:dir": "electron-builder --win --x64 --dir"
+  },
+  "build": {
+    "appId": "com.aether.lms.kiosk",
+    "productName": "Aether LMS Kiosk",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "src/**/*",
+      "config.default.json"
+    ],
+    "extraResources": [
+      {
+        "from": "config.default.json",
+        "to": "config.default.json"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "publisherName": "Aether LMS"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Aether LMS Kiosk",
+      "uninstallDisplayName": "Aether LMS Kiosk",
+      "deleteAppDataOnUninstall": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^35.0.0",
+    "electron-builder": "^25.1.8"
+  }
+}

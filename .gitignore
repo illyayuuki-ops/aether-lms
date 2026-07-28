@@ -1,0 +1,7 @@
+﻿node_modules/
+artifacts/api-server/dist/
+artifacts/library-system/dist/
+artifacts/kiosk-electron/release/
+artifacts/kiosk-electron/node_modules/
+.env
+*.log

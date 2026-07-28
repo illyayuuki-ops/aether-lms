@@ -1,0 +1,820 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.1.0
+  description: Aether LMS - Library Computer Login & Monitoring System API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+  - name: sessions
+  - name: admin
+  - name: students
+  - name: admins
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /sessions/lookup:
+    get:
+      operationId: lookupStudent
+      tags: [sessions]
+      summary: Lookup student by ID
+      parameters:
+        - name: studentId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Student found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentLookupResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /sessions/login:
+    post:
+      operationId: studentLogin
+      tags: [sessions]
+      summary: Student login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "201":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Computer already in use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /sessions/logout:
+    post:
+      operationId: studentLogout
+      tags: [sessions]
+      summary: Student logout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogoutRequest"
+      responses:
+        "200":
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogoutResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /sessions/active:
+    get:
+      operationId: getActiveSessions
+      tags: [sessions]
+      summary: Get active sessions
+      responses:
+        "200":
+          description: List of active sessions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActiveSessionsResponse"
+
+  /sessions/{sessionId}/heartbeat:
+    post:
+      operationId: sessionHeartbeat
+      tags: [sessions]
+      summary: Session heartbeat
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Heartbeat recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HeartbeatResponse"
+
+  /admin/login:
+    post:
+      operationId: adminLogin
+      tags: [admin]
+      summary: Admin login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminLoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminLoginResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/sessions:
+    get:
+      operationId: getAllSessions
+      tags: [admin]
+      summary: Get all sessions
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: gradeLevel
+          in: query
+          schema:
+            type: string
+        - name: computerNumber
+          in: query
+          schema:
+            type: integer
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: List of sessions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSessionsResponse"
+
+  /admin/stats:
+    get:
+      operationId: getStats
+      tags: [admin]
+      summary: Get usage statistics
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [today, week, month, year]
+            default: today
+      responses:
+        "200":
+          description: Usage statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatsResponse"
+
+  /admin/computers:
+    get:
+      operationId: getComputerStatus
+      tags: [admin]
+      summary: Get computer status
+      responses:
+        "200":
+          description: Computer status list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComputerStatusResponse"
+
+  /admin/students:
+    get:
+      operationId: listStudents
+      tags: [students]
+      summary: List students
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: degree
+          in: query
+          schema:
+            type: string
+        - name: yearLevel
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: List of students
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentListResponse"
+    post:
+      operationId: createStudent
+      tags: [students]
+      summary: Create student
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StudentBody"
+      responses:
+        "201":
+          description: Student created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentRecord"
+        "409":
+          description: Duplicate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/students/{id}:
+    put:
+      operationId: updateStudent
+      tags: [students]
+      summary: Update student
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StudentBody"
+      responses:
+        "200":
+          description: Student updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentRecord"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteStudent
+      tags: [students]
+      summary: Delete student
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Student deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /admin/admins:
+    get:
+      operationId: listAdmins
+      tags: [admins]
+      summary: List admins
+      responses:
+        "200":
+          description: List of admins
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminListResponse"
+    post:
+      operationId: createAdmin
+      tags: [admins]
+      summary: Create admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAdminBody"
+      responses:
+        "201":
+          description: Admin created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminRecord"
+
+  /admin/admins/{id}:
+    put:
+      operationId: updateAdmin
+      tags: [admins]
+      summary: Update admin
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAdminBody"
+      responses:
+        "200":
+          description: Admin updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminRecord"
+    delete:
+      operationId: deleteAdmin
+      tags: [admins]
+      summary: Delete admin
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Admin deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
+
+    StudentLookupResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        studentId:
+          type: string
+        name:
+          type: string
+        degree:
+          type: string
+        major:
+          type: string
+          nullable: true
+        yearLevel:
+          type: string
+        isActive:
+          type: boolean
+      required: [id, studentId, name, degree, yearLevel, isActive]
+
+    LoginRequest:
+      type: object
+      properties:
+        studentId:
+          type: string
+        name:
+          type: string
+        degree:
+          type: string
+        yearLevel:
+          type: string
+        computerNumber:
+          type: integer
+        researchTopic:
+          type: string
+          nullable: true
+      required: [studentId, name, degree, yearLevel, computerNumber]
+
+    SessionResponse:
+      type: object
+      properties:
+        sessionId:
+          type: integer
+        studentId:
+          type: string
+        name:
+          type: string
+        degree:
+          type: string
+        yearLevel:
+          type: string
+        computerNumber:
+          type: integer
+        researchTopic:
+          type: string
+          nullable: true
+        loginTime:
+          type: string
+          format: date-time
+        timeLimitMinutes:
+          type: integer
+        inactivityLimitMinutes:
+          type: integer
+      required: [sessionId, studentId, name, degree, yearLevel, computerNumber, loginTime, timeLimitMinutes, inactivityLimitMinutes]
+
+    LogoutRequest:
+      type: object
+      properties:
+        sessionId:
+          type: integer
+        reason:
+          type: string
+          enum: [manual, inactivity, time_limit]
+          default: manual
+      required: [sessionId]
+
+    LogoutResponse:
+      type: object
+      properties:
+        sessionId:
+          type: integer
+        logoutTime:
+          type: string
+          format: date-time
+        durationMinutes:
+          type: integer
+        reason:
+          type: string
+      required: [sessionId, logoutTime, durationMinutes, reason]
+
+    ActiveSessionsResponse:
+      type: object
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActiveSession"
+      required: [sessions]
+
+    ActiveSession:
+      type: object
+      properties:
+        sessionId:
+          type: integer
+        studentId:
+          type: string
+        name:
+          type: string
+        degree:
+          type: string
+        yearLevel:
+          type: string
+        computerNumber:
+          type: integer
+        researchTopic:
+          type: string
+          nullable: true
+        loginTime:
+          type: string
+          format: date-time
+        lastActivity:
+          type: string
+          format: date-time
+        elapsedMinutes:
+          type: integer
+        timeLimitMinutes:
+          type: integer
+        inactivityLimitMinutes:
+          type: integer
+      required: [sessionId, studentId, name, degree, yearLevel, computerNumber, loginTime, lastActivity, elapsedMinutes, timeLimitMinutes, inactivityLimitMinutes]
+
+    HeartbeatResponse:
+      type: object
+      properties:
+        sessionId:
+          type: integer
+        lastActivity:
+          type: string
+          format: date-time
+      required: [sessionId, lastActivity]
+
+    AdminLoginRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+      required: [password]
+
+    AdminLoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        message:
+          type: string
+      required: [token, message]
+
+    AdminSessionsResponse:
+      type: object
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/SessionRecord"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required: [sessions, total, page, limit]
+
+    SessionRecord:
+      type: object
+      properties:
+        sessionId:
+          type: integer
+        studentId:
+          type: string
+        name:
+          type: string
+        degree:
+          type: string
+        yearLevel:
+          type: string
+        computerNumber:
+          type: integer
+        researchTopic:
+          type: string
+          nullable: true
+        loginTime:
+          type: string
+          format: date-time
+        logoutTime:
+          type: string
+          format: date-time
+          nullable: true
+        durationMinutes:
+          type: integer
+          nullable: true
+        logoutReason:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+      required: [sessionId, studentId, name, degree, yearLevel, computerNumber, loginTime, logoutTime, durationMinutes, logoutReason, isActive]
+
+    StatsResponse:
+      type: object
+      properties:
+        totalSessions:
+          type: integer
+        activeSessions:
+          type: integer
+        uniqueStudents:
+          type: integer
+        avgDurationMinutes:
+          type: integer
+        byGradeLevel:
+          type: array
+          items:
+            $ref: "#/components/schemas/GradeLevelStat"
+        byComputer:
+          type: array
+          items:
+            $ref: "#/components/schemas/ComputerStat"
+      required: [totalSessions, activeSessions, uniqueStudents, avgDurationMinutes, byGradeLevel, byComputer]
+
+    GradeLevelStat:
+      type: object
+      properties:
+        gradeLevel:
+          type: string
+        count:
+          type: integer
+      required: [gradeLevel, count]
+
+    ComputerStat:
+      type: object
+      properties:
+        computerNumber:
+          type: integer
+        count:
+          type: integer
+      required: [computerNumber, count]
+
+    ComputerStatusResponse:
+      type: object
+      properties:
+        computers:
+          type: array
+          items:
+            $ref: "#/components/schemas/ComputerStatus"
+        totalComputers:
+          type: integer
+        inUse:
+          type: integer
+        available:
+          type: integer
+      required: [computers, totalComputers, inUse, available]
+
+    ComputerStatus:
+      type: object
+      properties:
+        computerNumber:
+          type: integer
+        isInUse:
+          type: boolean
+        currentSession:
+          $ref: "#/components/schemas/ActiveSession"
+          nullable: true
+      required: [computerNumber, isInUse, currentSession]
+
+    StudentBody:
+      type: object
+      properties:
+        studentId:
+          type: string
+        name:
+          type: string
+        degree:
+          type: string
+        major:
+          type: string
+          nullable: true
+        yearLevel:
+          type: string
+        isActive:
+          type: boolean
+      required: [studentId, name, degree, yearLevel]
+
+    StudentRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        studentId:
+          type: string
+        name:
+          type: string
+        degree:
+          type: string
+        major:
+          type: string
+          nullable: true
+        yearLevel:
+          type: string
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, studentId, name, degree, yearLevel, isActive, createdAt, updatedAt]
+
+    StudentListResponse:
+      type: object
+      properties:
+        students:
+          type: array
+          items:
+            $ref: "#/components/schemas/StudentRecord"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required: [students, total, page, limit]
+
+    CreateAdminBody:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+      required: [username, password]
+
+    UpdateAdminBody:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+
+    AdminRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, username, isActive, createdAt]
+
+    AdminListResponse:
+      type: object
+      properties:
+        admins:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminRecord"
+      required: [admins]
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required: [success, message]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required: [error, message]

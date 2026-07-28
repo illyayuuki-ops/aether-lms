@@ -1,0 +1,31 @@
+{
+  "name": "workspace",
+  "version": "0.0.0",
+  "license": "MIT",
+  "scripts": {
+    "preinstall": "node scripts/preinstall.mjs",
+    "build": "pnpm run typecheck && pnpm -r --if-present run build",
+    "typecheck:libs": "tsc --build",
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
+    "dev:api": "pnpm --dir artifacts/api-server run dev",
+    "dev:web": "pnpm --dir artifacts/library-system run dev",
+    "dev": "pnpm dlx concurrently \"cross-env DATABASE_URL=postgresql://postgres:030306@localhost:5432/aether_lms PORT=3000 pnpm --dir artifacts/api-server run dev\" \"cross-env PORT=5173 BASE_PATH=/ pnpm --dir artifacts/library-system run dev\"",
+    "start": "taskkill /F /IM node.exe 2>nul & pnpm run dev",
+    "build:web": "cross-env NODE_ENV=production PORT=3000 BASE_PATH=/ pnpm --dir artifacts/library-system run build",
+    "build:server": "pnpm run build:web && node scripts/copy-public.mjs && pnpm --dir artifacts/api-server run build",
+    "build:kiosk": "pnpm --dir artifacts/kiosk-electron run build",
+    "build:production": "pnpm run build:server && pnpm run build:kiosk",
+    "db:push": "cross-env DATABASE_URL=postgresql://postgres:030306@localhost:5432/aether_lms pnpm --dir lib/db run push",
+    "db:seed": "cross-env DATABASE_URL=postgresql://postgres:030306@localhost:5432/aether_lms pnpm --dir lib/db run seed"
+},
+  "private": true,
+  "devDependencies": {
+    "typescript": "~5.9.2",
+    "prettier": "^3.8.1",
+    "@rollup/rollup-win32-x64-msvc": "4.59.0",
+    "@tailwindcss/oxide-win32-x64-msvc": "^4.2.2",
+    "lightningcss-win32-x64-msvc": "^1.32.0",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0"
+  }
+}
