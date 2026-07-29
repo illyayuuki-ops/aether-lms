@@ -5,3 +5,4 @@ artifacts/kiosk-electron/release/
 artifacts/kiosk-electron/node_modules/
 .env
 *.log
+artifacts/api-server/.env
