@@ -242,12 +242,24 @@ router.post("/heartbeat", async (req, res) => {
   const { sessionId } = req.body ?? {};
   if (!sessionId) { res.status(400).json({ error: "missing" }); return; }
 
+  // Check if session is still active
+  const [session] = await db
+    .select({ id: sessionsTable.id, isActive: sessionsTable.isActive })
+    .from(sessionsTable)
+    .where(eq(sessionsTable.id, sessionId))
+    .limit(1);
+
+  // Session not found or was force-ended by admin
+  if (!session) { res.json({ active: false, error: "not_found" }); return; }
+  if (!session.isActive) { res.json({ active: false, error: "session_ended" }); return; }
+
+  // Update last activity
   await db
     .update(sessionsTable)
     .set({ lastActivity: new Date() })
     .where(and(eq(sessionsTable.id, sessionId), eq(sessionsTable.isActive, true)));
 
-  res.json({ success: true });
+  res.json({ success: true, active: true });
 });
 
 // ─── Change password ──────────────────────────────────────────────────────────

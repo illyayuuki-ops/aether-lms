@@ -178,13 +178,33 @@ export function useKioskSession() {
         setIsWarning(false);
       }
 
-      // Heartbeat via direct fetch — correct URL
+      // Heartbeat — check if session was force-ended by admin
       if (elapsed > 0 && elapsed % 30 === 0 && sessionRef.current) {
         fetch("/api/sessions/heartbeat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ sessionId: sessionRef.current.sessionId }),
-        }).catch(() => {});
+        })
+          .then((r) => r.json())
+          .then((data) => {
+            // If server says session is no longer active, force logout
+            if (data?.active === false || data?.error === "not_found" || data?.error === "session_ended") {
+              clearInterval(interval);
+              localStorage.removeItem(SESSION_STORAGE_KEY);
+              sessionRef.current = null;
+              isLoggingOutRef.current = false;
+              setSession(null);
+              setElapsedSeconds(0);
+              setIsWarning(false);
+              setIsLoggingOut(false);
+              toast({
+                title: "Session Ended",
+                description: "Your session was ended by the librarian.",
+                variant: "destructive",
+              });
+            }
+          })
+          .catch(() => {});
       }
     }, 1000);
 

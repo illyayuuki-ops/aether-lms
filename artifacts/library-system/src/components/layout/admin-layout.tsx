@@ -79,7 +79,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
             <Library className="w-6 h-6 text-white" />
           </div>
           <div className="flex flex-col">
-            <span className="font-display font-bold text-lg leading-tight">Aether LMS</span>
+            <span className="font-display font-bold text-lg leading-tight">L-CMS</span>
             <span className="text-xs text-primary-foreground/60">Admin Panel</span>
           </div>
         </div>

@@ -3,6 +3,8 @@ import { db } from "@workspace/db";
 import { sessionsTable, adminsTable, pcSettingsTable } from "@workspace/db/schema";
 import { eq, and, gte, lte, sql, count, avg } from "drizzle-orm";
 import { z } from "zod";
+import fs from "node:fs";
+import path from "node:path";
 import {
   GetAllSessionsQueryParams,
   GetStatsQueryParams,
@@ -233,34 +235,38 @@ router.get("/computers", requireAdmin, async (_req, res) => {
   res.json({ computers, totalComputers: TOTAL_COMPUTERS, inUse: activeSessions.length, available: TOTAL_COMPUTERS - activeSessions.length });
 });
 
-// ─── System Settings ─────────────────────────────────────────────────────────
+// ─── System Settings — persisted to disk ─────────────────────────────────────
+
+const SETTINGS_FILE = path.join(process.cwd(), "system-settings.json");
 
 const DEFAULT_SYSTEM_SETTINGS = {
   inactivityLimitMinutes: 10,
   sessionTimeLimitMinutes: 60,
-  // ── Based on actual school enrollment data ──
   courses: [
-    // College
     "BEED", "BSA", "BSBA", "BSED", "BSHM", "BSIE", "BSIT", "BSMA", "BSP", "BSTM",
-    // Senior High School (SHS + strands — ABM is SHS, NOT college)
     "SHS", "STEM", "ABM", "HUMSS", "GAS",
     "TVL - ICT", "TVL - HE", "TVL - IA", "TVL - AFA",
     "SPORTS", "ARTS & DESIGN",
-    // Junior High School
-    "JHS",
-    // Middle School (grades 6-8)
-    "MS",
-    // Lower School (grades 1-5)
-    "LS",
-    // Kinder (grades K1-K2)
-    "KS",
+    "JHS", "MS", "LS", "KS",
   ],
-  // Year levels from actual data:
-  // College: 1-4, SHS: 11-12, JHS: 9-10, MS: 6-8, LS: 1-5, KS: 1-2
   yearLevels: ["1","2","3","4","5","6","7","8","9","10","11","12"],
 };
 
-let systemSettings = { ...DEFAULT_SYSTEM_SETTINGS };
+function loadSettings() {
+  try {
+    if (fs.existsSync(SETTINGS_FILE)) {
+      const raw = fs.readFileSync(SETTINGS_FILE, "utf8");
+      return { ...DEFAULT_SYSTEM_SETTINGS, ...JSON.parse(raw) };
+    }
+  } catch { }
+  return { ...DEFAULT_SYSTEM_SETTINGS };
+}
+
+function saveSettings(settings: typeof DEFAULT_SYSTEM_SETTINGS) {
+  try { fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), "utf8"); } catch { }
+}
+
+let systemSettings = loadSettings();
 
 router.get("/settings/system", requireAdmin, (_req, res) => {
   res.json(systemSettings);
@@ -278,6 +284,7 @@ router.put("/settings/system", requireAdmin, async (req, res) => {
   if (!parsed.success) { res.status(400).json({ error: "validation_error", message: parsed.error.message }); return; }
 
   systemSettings = { ...systemSettings, ...parsed.data };
+  saveSettings(systemSettings);
   res.json({ success: true, settings: systemSettings });
 });
 

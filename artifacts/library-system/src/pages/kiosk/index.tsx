@@ -532,8 +532,7 @@ function LoginView({ onLogin, currentTime }: { onLogin: (s: any) => void; curren
             <span className="text-xs text-white/60 ml-5">{formattedDate}</span>
           </div>
           <h1 className="text-5xl md:text-7xl font-display font-bold leading-tight mb-4">
-            Aether<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-accent">LMS</span>
+            L-CMS
           </h1>
           <p className="text-lg md:text-xl text-white/70 max-w-xl font-light mb-2">LCCT Computer Management System</p>
           <p className="text-sm text-white/50">Enter your Student ID and Password to begin your session.</p>
@@ -681,7 +680,7 @@ function ActiveSessionView({ session, elapsedSeconds, isWarning, onLogout, isLog
     if (isWarning && !warningNotifSent.current) {
       warningNotifSent.current = true;
       sendNotification(
-        "⚠️ Inactivity Warning — Aether LMS",
+        "⚠️ Inactivity Warning — L-CMS",
         "You will be logged out in 1 minute due to inactivity. Move your mouse to stay logged in.",
         true
       );
@@ -693,7 +692,7 @@ function ActiveSessionView({ session, elapsedSeconds, isWarning, onLogout, isLog
     if (isLoggingOut && !logoutNotifSent.current) {
       logoutNotifSent.current = true;
       sendNotification(
-        "🔒 Session Ended — Aether LMS",
+        "🔒 Session Ended — L-CMS",
         "Your library session has ended due to inactivity. Please log in again to continue.",
         false
       );
@@ -781,7 +780,7 @@ function ActiveSessionView({ session, elapsedSeconds, isWarning, onLogout, isLog
               <Monitor className="w-8 h-8 text-white" />
             </div>
             <div>
-              <h2 className="text-sm font-medium text-white/60 tracking-wider uppercase mb-1">Aether LMS — Active Session</h2>
+              <h2 className="text-sm font-medium text-white/60 tracking-wider uppercase mb-1">L-CMS — Active Session</h2>
               <p className="text-3xl font-display font-bold">PC — {session.computerNumber.toString().padStart(2, "0")}</p>
             </div>
           </div>

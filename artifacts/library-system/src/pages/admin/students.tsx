@@ -195,8 +195,9 @@ function useSystemSettings() {
 
 // ─── Import Modal ─────────────────────────────────────────────────────────────
 
-function ImportModal({ onClose, onImported, courses }: {
+function ImportModal({ onClose, onImported, courses, onRemovedStudentsFound }: {
   onClose: () => void; onImported: () => void; courses: string[];
+  onRemovedStudentsFound: (students: {id: number, name: string, studentId: string}[]) => void;
 }) {
   const { toast } = useToast();
   const { authHeaders } = useAdminAuth();
@@ -231,6 +232,14 @@ function ImportModal({ onClose, onImported, courses }: {
       const resp = await fetch("/api/admin/students?limit=9999", { headers: authHeaders as any });
       const data = resp.ok ? await resp.json() : { students: [] };
       const existingMap = new Map((data.students ?? []).map((s: any) => [s.studentId, s]));
+      const newIds = new Set(parsed.map(r => r.studentId));
+
+      // Find students in DB not in the new file
+      const removed = (data.students ?? [])
+        .filter((s: any) => !newIds.has(s.studentId))
+        .map((s: any) => ({ id: s.id, name: s.name, studentId: s.studentId }));
+      if (removed.length > 0) onRemovedStudentsFound(removed);
+
       return parsed.map((row) => {
         if (!row.studentId) return { ...row, status: "error" as const, error: "Missing Student ID" };
         if (!row.name || row.name.length < 2) return { ...row, status: "error" as const, error: "Invalid name" };
@@ -565,6 +574,8 @@ export default function AdminStudents() {
   const [duplicateCandidates, setDuplicateCandidates] = useState<any[]>([]);
   const [deleteConfirmId, setDeleteConfirmId]         = useState<number | null>(null);
   const [showImport, setShowImport]                   = useState(false);
+  const [removedStudents, setRemovedStudents] = useState<{id: number, name: string, studentId: string}[]>([]);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
 
   const { data, isLoading, refetch } = useListStudents({
     page, limit: 50,
@@ -635,11 +646,61 @@ export default function AdminStudents() {
 
   const inputCls = "w-full h-11 px-4 rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 text-sm";
 
+  // Delete students not in new import file
+  const handleRemoveOldStudents = async () => {
+    for (const s of removedStudents) {
+      try {
+        await fetch(`/api/admin/students/${s.id}`, {
+          method: "DELETE",
+          headers: authHeaders as any,
+        });
+      } catch { }
+    }
+    setShowRemoveConfirm(false);
+    setRemovedStudents([]);
+    toast({ title: `${removedStudents.length} students removed from the system.` });
+  };
+
   return (
     <AdminLayout>
       <div className="flex flex-col gap-6 h-full">
 
-        {/* ── Toolbar ── */}
+        {/* ── Remove Students Confirmation Dialog ── */}
+        {showRemoveConfirm && removedStudents.length > 0 && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-background rounded-2xl shadow-xl max-w-md w-full p-6">
+              <h3 className="text-lg font-bold text-foreground mb-2">Remove Old Students?</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                <span className="font-semibold text-destructive">{removedStudents.length} student{removedStudents.length > 1 ? "s" : ""}</span> in the database are not in the new file. Do you want to remove them?
+              </p>
+              <div className="max-h-40 overflow-y-auto border border-border rounded-xl mb-4">
+                {removedStudents.slice(0, 20).map((s) => (
+                  <div key={s.id} className="px-3 py-2 text-xs border-b border-border last:border-0">
+                    <span className="font-medium">{s.name}</span>
+                    <span className="text-muted-foreground ml-2">{s.studentId}</span>
+                  </div>
+                ))}
+                {removedStudents.length > 20 && (
+                  <div className="px-3 py-2 text-xs text-muted-foreground">...and {removedStudents.length - 20} more</div>
+                )}
+              </div>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => { setShowRemoveConfirm(false); setRemovedStudents([]); }}
+                  className="px-4 py-2 rounded-xl border border-border text-sm hover:bg-muted transition-colors"
+                >
+                  Keep All
+                </button>
+                <button
+                  onClick={handleRemoveOldStudents}
+                  className="px-4 py-2 rounded-xl bg-destructive text-destructive-foreground text-sm font-medium hover:bg-destructive/90 transition-colors"
+                >
+                  Remove {removedStudents.length} Students
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
           <div className="flex gap-2 flex-1 flex-wrap">
             <div className="relative flex-1 min-w-[160px]">
@@ -842,7 +903,12 @@ export default function AdminStudents() {
       )}
 
       {showImport && (
-        <ImportModal onClose={() => setShowImport(false)} onImported={() => refetch()} courses={courses} />
+        <ImportModal
+          onClose={() => setShowImport(false)}
+          onImported={() => refetch()}
+          courses={courses}
+          onRemovedStudentsFound={(students) => { setRemovedStudents(students); setShowRemoveConfirm(true); }}
+        />
       )}
     </AdminLayout>
   );

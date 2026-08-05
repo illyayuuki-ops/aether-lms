@@ -59,6 +59,10 @@ function formatDateOnly(date: string | null | undefined) {
   return new Date(date).toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" });
 }
 
+// Generate school years dynamically
+const currentYear = new Date().getFullYear();
+const schoolYears = Array.from({ length: 5 }, (_, i) => `${currentYear - 2 + i}-${currentYear - 1 + i}`);
+
 function exportToCSV(sessions: any[]) {
   const headers = ["Name", "Student ID", "Degree", "Year Level", "PC #", "Date", "Time In", "Time Out", "Duration", "Status"];
   const rows = sessions.map((s) => [
@@ -87,10 +91,30 @@ function exportToHTML(sessions: any[], title: string) {
     <td>${s.isActive ? "Active" : s.logoutReason === "inactivity" ? "Auto-Logout" : "Completed"}</td>
   </tr>`).join("");
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
-  <style>body{font-family:Arial,sans-serif;font-size:12px;margin:24px}h2{color:#1e3a5f}table{border-collapse:collapse;width:100%}th{background:#1e3a5f;color:white;padding:8px 10px;text-align:left}td{padding:6px 10px;border-bottom:1px solid #ddd}.meta{color:#666;font-size:11px;margin-bottom:16px}</style></head><body>
-  <h2>AETHER LMS — ${title}</h2>
+  <style>
+    @page { size: A4 landscape; margin: 15mm; }
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; font-size: 10px; margin: 0; padding: 0; color: #333; }
+    h2 { color: #1e3a5f; font-size: 14px; margin: 0 0 4px 0; }
+    .meta { color: #666; font-size: 9px; margin-bottom: 12px; }
+    table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+    th { background: #1e3a5f; color: white; padding: 6px 8px; text-align: left; font-size: 9px; word-wrap: break-word; }
+    td { padding: 5px 8px; border-bottom: 1px solid #ddd; word-wrap: break-word; font-size: 9px; }
+    tr:nth-child(even) { background: #f9f9f9; }
+    th:nth-child(1), td:nth-child(1) { width: 18%; }
+    th:nth-child(2), td:nth-child(2) { width: 10%; }
+    th:nth-child(3), td:nth-child(3) { width: 10%; }
+    th:nth-child(4), td:nth-child(4) { width: 5%; }
+    th:nth-child(5), td:nth-child(5) { width: 5%; }
+    th:nth-child(6), td:nth-child(6) { width: 10%; }
+    th:nth-child(7), td:nth-child(7) { width: 8%; }
+    th:nth-child(8), td:nth-child(8) { width: 8%; }
+    th:nth-child(9), td:nth-child(9) { width: 8%; }
+    th:nth-child(10), td:nth-child(10) { width: 10%; }
+  </style></head><body>
+  <h2>L-CMS — ${title}</h2>
   <p class="meta">Exported: ${new Date().toLocaleString()} | Total: ${sessions.length} records</p>
-  <table><thead><tr><th>Name</th><th>Student ID</th><th>Degree</th><th>Year</th><th>PC #</th><th>Date</th><th>Time In</th><th>Time Out</th><th>Duration</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
+  <table><thead><tr><th>Name</th><th>Student ID</th><th>Degree</th><th>Year</th><th>PC#</th><th>Date</th><th>Time In</th><th>Time Out</th><th>Duration</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
 }
 
 function downloadWord(sessions: any[], title: string) {
@@ -210,6 +234,10 @@ export default function AdminSessions() {
   const [forceLogoutId, setForceLogoutId] = useState<number | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isForceLoggingOut, setIsForceLoggingOut] = useState(false);
+  
+  // New State variables for the export dropdowns
+  const [schoolYear, setSchoolYear] = useState(`${currentYear}-${currentYear + 1}`);
+  const [semester, setSemester] = useState("1st Semester");
 
   const { data, isLoading, refetch } = useGetAllSessions({
     page, limit: 50,
@@ -302,9 +330,28 @@ export default function AdminSessions() {
                 </Button>
               )}
             </div>
-            <Button variant="outline" className="w-full sm:w-auto gap-2 shrink-0" onClick={() => setShowExport(true)} disabled={sessions.length === 0}>
-              <Download className="w-4 h-4" /> Export
-            </Button>
+            
+            <div className="flex gap-2 items-center">
+              <select
+                value={schoolYear}
+                onChange={(e) => setSchoolYear(e.target.value)}
+                className="h-9 rounded-lg border border-border bg-background px-2 text-sm text-foreground focus:outline-none"
+              >
+                {schoolYears.map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+              <select
+                value={semester}
+                onChange={(e) => setSemester(e.target.value)}
+                className="h-9 rounded-lg border border-border bg-background px-2 text-sm text-foreground focus:outline-none"
+              >
+                <option>1st Semester</option>
+                <option>2nd Semester</option>
+                <option>Summer</option>
+              </select>
+              <Button variant="outline" className="gap-2 shrink-0" onClick={() => setShowExport(true)} disabled={sessions.length === 0}>
+                <Download className="w-4 h-4" /> Export
+              </Button>
+            </div>
           </div>
 
           {/* Table */}
@@ -415,7 +462,7 @@ export default function AdminSessions() {
         </div>
       </div>
 
-      {showExport && <ExportModal sessions={sessions} title={pageTitle} onClose={() => setShowExport(false)} />}
+      {showExport && <ExportModal sessions={sessions} title={`${pageTitle} (${semester} AY ${schoolYear})`} onClose={() => setShowExport(false)} />}
 
       {forceLogoutId !== null && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">

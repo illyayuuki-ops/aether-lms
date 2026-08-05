@@ -33,6 +33,7 @@ import { useKioskSession } from "@/hooks/use-kiosk-session";
 import { Button } from "@/components/ui/button";
 import { cn, logZodError } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
+import { setKioskDesktopMode } from "@/lib/electron-kiosk";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -469,18 +470,6 @@ function LoginView({ onLogin, currentTime }: { onLogin: (s: any) => void; curren
         </div>
       </Link>
 
-      {/* Lock Screen button — for librarian to lock the PC before leaving */}
-      <button
-        onClick={() => {
-          (window as any).aetherKiosk?.lock?.();
-        }}
-        className="absolute top-6 right-20 z-50 flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/15 border border-white/10 hover:border-white/30 transition-all text-white/40 hover:text-white/80 text-xs font-medium"
-        title="Lock this screen so students cannot access the desktop"
-      >
-        <Lock className="w-3.5 h-3.5" />
-        Lock Screen
-      </button>
-
       {showChangePassword && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <div className="bg-[#1a2235] border border-white/10 rounded-3xl p-8 w-full max-w-md shadow-2xl">
@@ -534,8 +523,7 @@ function LoginView({ onLogin, currentTime }: { onLogin: (s: any) => void; curren
             <span className="text-xs text-white/60 ml-5">{formattedDate}</span>
           </div>
           <h1 className="text-5xl md:text-7xl font-display font-bold leading-tight mb-4">
-            Aether<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-accent">LMS</span>
+            L-CMS
           </h1>
           <p className="text-lg md:text-xl text-white/70 max-w-xl font-light mb-2">LCCT Computer Management System</p>
           <p className="text-sm text-white/50">Enter your Student ID and Password to begin your session.</p>
@@ -624,6 +612,12 @@ function LoginView({ onLogin, currentTime }: { onLogin: (s: any) => void; curren
             <UserPlus className="w-4 h-4" />
             New student? Register your account
           </button>
+
+          {/* Developer credits */}
+          <div className="text-center text-white/20 text-xs pt-1 space-y-1">
+            <p>Developed by: Pababero, John Raphael • Alemania, Julia Cassandra • Galit, Jake Mathew • Piamonte, Nash Steven</p>
+            <p>2nd year Batch 2025-2026</p>
+          </div>
         </div>
       </div>
     </div>
@@ -643,10 +637,14 @@ function ActiveSessionView({ session, elapsedSeconds, isWarning, onLogout, isLog
   useEffect(() => { requestNotificationPermission(); }, []);
 
   useEffect(() => {
+    setKioskDesktopMode(isDesktopMode);
+  }, [isDesktopMode]);
+
+  useEffect(() => {
     if (isWarning && !warningNotifSent.current) {
       warningNotifSent.current = true;
       sendNotification(
-        "⚠️ Inactivity Warning — Aether LMS",
+        "⚠️ Inactivity Warning — L-CMS",
         "You will be logged out in 1 minute due to inactivity. Move your mouse to stay logged in.",
         true
       );
@@ -658,7 +656,7 @@ function ActiveSessionView({ session, elapsedSeconds, isWarning, onLogout, isLog
     if (isLoggingOut && !logoutNotifSent.current) {
       logoutNotifSent.current = true;
       sendNotification(
-        "🔒 Session Ended — Aether LMS",
+        "🔒 Session Ended — L-CMS",
         "Your library session has ended due to inactivity. Please log in again to continue.",
         false
       );
@@ -746,7 +744,7 @@ function ActiveSessionView({ session, elapsedSeconds, isWarning, onLogout, isLog
               <Monitor className="w-8 h-8 text-white" />
             </div>
             <div>
-              <h2 className="text-sm font-medium text-white/60 tracking-wider uppercase mb-1">Aether LMS — Active Session</h2>
+              <h2 className="text-sm font-medium text-white/60 tracking-wider uppercase mb-1">L-CMS — Active Session</h2>
               <p className="text-3xl font-display font-bold">PC — {session.computerNumber.toString().padStart(2, "0")}</p>
             </div>
           </div>
@@ -780,16 +778,7 @@ function ActiveSessionView({ session, elapsedSeconds, isWarning, onLogout, isLog
             {/* ── Go to Desktop button ── */}
             <div className="pt-2">
               <button
-                onClick={() => {
-                  const kiosk = (window as any).aetherKiosk;
-                  if (kiosk?.desktopMode) {
-                    // Electron: minimize window + show floating badge
-                    kiosk.desktopMode(session);
-                  } else {
-                    // Browser fallback: just hide the session card
-                    setIsDesktopMode(true);
-                  }
-                }}
+                onClick={() => setIsDesktopMode(true)}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/60 transition-all text-sm font-medium text-muted-foreground hover:text-foreground"
               >
                 <LayoutDashboard className="w-4 h-4" />
