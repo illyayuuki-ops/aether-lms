@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="480" viewBox="0 0 800 480" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#0f172a"/><stop offset="1" stop-color="#071023"/></linearGradient>
+  </defs>
+  <rect width="800" height="480" fill="url(#g)" />
+  <g fill="#fff" opacity="0.06">
+    <rect x="24" y="28" width="752" height="120" rx="12"/>
+    <rect x="24" y="160" width="352" height="240" rx="12"/>
+    <rect x="392" y="160" width="352" height="240" rx="12"/>
+  </g>
+  <text x="32" y="72" fill="#cbd5e1" font-size="22" font-family="Inter, sans-serif">Screenshot placeholder</text>
+</svg>
