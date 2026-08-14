@@ -35,10 +35,11 @@ export function useKioskSession() {
   const [isWarning, setIsWarning]           = useState(false);
   const [isLoggingOut, setIsLoggingOut]     = useState(false);
 
-  const sessionRef      = useRef<SessionResponse | null>(session);
-  const lastActivityRef = useRef<number>(Date.now());
-  const isWarningRef    = useRef(false);
-  const isLoggingOutRef = useRef(false);
+  const sessionRef       = useRef<SessionResponse | null>(session);
+  const lastActivityRef  = useRef<number>(Date.now());
+  const lastHeartbeatRef = useRef<number>(Date.now());
+  const isWarningRef     = useRef(false);
+  const isLoggingOutRef  = useRef(false);
 
   const { toast } = useToast();
 
@@ -149,8 +150,9 @@ export function useKioskSession() {
     const inactivityLimitMs = (session.inactivityLimitMinutes ?? 5) * 60 * 1000;
     const warningMs         = inactivityLimitMs - DEFAULT_WARNING_BEFORE_MS;
 
-    lastActivityRef.current = Date.now();
-    isLoggingOutRef.current = false;
+    lastActivityRef.current  = Date.now();
+    lastHeartbeatRef.current = Date.now();
+    isLoggingOutRef.current  = false;
 
     const interval = setInterval(() => {
       if (!sessionRef.current) {
@@ -179,7 +181,10 @@ export function useKioskSession() {
       }
 
       // Heartbeat — check if session was force-ended by admin
-      if (elapsed > 0 && elapsed % 30 === 0 && sessionRef.current) {
+      // FIX: Uses timestamp delta instead of modulo division (now - lastHeartbeatRef >= 30,000ms)
+      if (now - lastHeartbeatRef.current >= 30000 && sessionRef.current) {
+        lastHeartbeatRef.current = now;
+
         fetch("/api/sessions/heartbeat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -215,8 +220,9 @@ export function useKioskSession() {
   const handleLogin = (newSession: SessionResponse) => {
     localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(newSession));
     sessionRef.current      = newSession;
-    lastActivityRef.current = Date.now();
-    isLoggingOutRef.current = false;
+    lastActivityRef.current  = Date.now();
+    lastHeartbeatRef.current = Date.now();
+    isLoggingOutRef.current  = false;
     setSession(newSession);
     setElapsedSeconds(0);
     setIsWarning(false);
