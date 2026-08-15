@@ -80,7 +80,7 @@ function InstructionsSheet() {
     { title: "2. First time?", body: <>Your default password is your <strong>Student ID</strong>. You will be asked to set a personal password on your first login.</> },
     { title: "3. Use the computer", body: <>After logging in, click <strong>Go to Desktop</strong>. A small floating badge stays on the side of the screen while you work.</> },
     { title: "4. End your session", body: <>When you are done, click <strong>End Session</strong> on the floating badge (or return to the session screen and log out).</> },
-    { title: "5. Stay active", body: <>Sessions end automatically after <strong>5 minutes</strong> of inactivity, so keep working or log out when finished.</> },
+    { title: "5. Stay active", body: <>Sessions end automatically after a period of <strong>inactivity</strong>, so keep working or log out when finished.</> },
     { title: "Forgot your password?", body: <>Use the <strong>Forgot your password?</strong> link below the login form, or ask the librarian for help.</> },
   ];
 
