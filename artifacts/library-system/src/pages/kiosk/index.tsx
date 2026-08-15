@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 
 // ─── Windows Notification Helper ─────────────────────────────────────────────
 
@@ -27,10 +27,11 @@ import { Link } from "wouter";
 import {
   Monitor, Clock, LogOut, AlertTriangle, ShieldCheck,
   Loader2, Eye, EyeOff, Lock, UserPlus, KeyRound, ArrowLeft,
-  CheckCircle, Minimize2, Maximize2, LayoutDashboard,
+  CheckCircle, Minimize2, Maximize2, LayoutDashboard, BookOpen,
 } from "lucide-react";
 import { useKioskSession } from "@/hooks/use-kiosk-session";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn, logZodError } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { setKioskDesktopMode, onKioskDesktopModeChanged, onKioskEndSession, isElectronKiosk } from "@/lib/electron-kiosk";
@@ -70,6 +71,49 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 type SelfServiceValues = z.infer<typeof selfServiceSchema>;
 type ChangePasswordValues = z.infer<typeof changePasswordSchema>;
 type KioskMode = "login" | "register" | "forgot";
+
+// ─── Instructions Sheet — pull-out student guide on the left side ────────────
+
+function InstructionsSheet() {
+  const steps: { title: string; body: ReactNode }[] = [
+    { title: "1. Log in", body: <>Enter your <strong>Student ID</strong> (format <span className="font-mono">YY-NNNNN</span>, e.g. <span className="font-mono">24-12913</span>) and your password, then press <strong>Start Session</strong>.</> },
+    { title: "2. First time?", body: <>Your default password is your <strong>Student ID</strong>. You will be asked to set a personal password on your first login.</> },
+    { title: "3. Use the computer", body: <>After logging in, click <strong>Go to Desktop</strong>. A small floating badge stays on the side of the screen while you work.</> },
+    { title: "4. End your session", body: <>When you are done, click <strong>End Session</strong> on the floating badge (or return to the session screen and log out).</> },
+    { title: "5. Stay active", body: <>Sessions end automatically after <strong>5 minutes</strong> of inactivity, so keep working or log out when finished.</> },
+    { title: "Forgot your password?", body: <>Use the <strong>Forgot your password?</strong> link below the login form, or ask the librarian for help.</> },
+  ];
+
+  return (
+    <Sheet>
+      <SheetTrigger asChild>
+        <button
+          className="fixed left-0 top-1/2 -translate-y-1/2 z-50 flex items-center gap-2 pl-3 pr-4 py-3 rounded-r-2xl bg-white/10 backdrop-blur-md border border-l-0 border-white/20 text-white/70 hover:text-white hover:bg-white/20 transition-all shadow-lg"
+          aria-label="Open instructions"
+        >
+          <BookOpen className="w-5 h-5" />
+          <span className="text-sm font-medium [writing-mode:vertical-rl] rotate-180 tracking-wide">Instructions</span>
+        </button>
+      </SheetTrigger>
+      <SheetContent side="left" className="bg-[#101a2e] border-white/10 text-white overflow-y-auto w-[340px] sm:max-w-[340px]">
+        <SheetHeader>
+          <SheetTitle className="text-white flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-accent" /> How to Use This PC
+          </SheetTitle>
+        </SheetHeader>
+        <div className="mt-6 space-y-4">
+          {steps.map((s) => (
+            <div key={s.title} className="bg-white/5 border border-white/10 rounded-2xl p-4">
+              <p className="text-sm font-semibold text-white mb-1">{s.title}</p>
+              <p className="text-sm text-white/60 leading-relaxed">{s.body}</p>
+            </div>
+          ))}
+          <p className="text-xs text-white/30 text-center pt-2">Need more help? Ask the librarian at the front desk.</p>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
 
 // ─── Shared styles ────────────────────────────────────────────────────────────
 const inputCls = "w-full h-12 bg-white/10 border border-white/20 rounded-xl px-4 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-accent transition-all";
@@ -331,8 +375,6 @@ function LoginView({ onLogin, currentTime }: { onLogin: (s: any) => void; curren
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [mode, setMode] = useState<KioskMode>("login");
-  const [schoolYear, setSchoolYear] = useState("2025-2026");
-  const [semester, setSemester] = useState("1st Semester");
 
   const [detectedPcNumber, setDetectedPcNumber] = useState<number | null>(null);
   const [pcDetectionStatus, setPcDetectionStatus] = useState<"loading" | "found" | "not_found">("loading");
@@ -342,13 +384,6 @@ function LoginView({ onLogin, currentTime }: { onLogin: (s: any) => void; curren
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-
-  // Generate school years — current and past 3 years
-  const currentYear = new Date().getFullYear();
-  const schoolYears = Array.from({ length: 4 }, (_, i) => {
-    const y = currentYear - i;
-    return `${y}-${y + 1}`;
-  });
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -478,6 +513,8 @@ function LoginView({ onLogin, currentTime }: { onLogin: (s: any) => void; curren
           <ShieldCheck className="w-5 h-5 text-white/30 hover:text-white/80" />
         </div>
       </Link>
+
+      <InstructionsSheet />
 
       {showChangePassword && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
@@ -612,42 +649,6 @@ function LoginView({ onLogin, currentTime }: { onLogin: (s: any) => void; curren
             <button onClick={() => setMode("forgot")} className="w-full text-center text-white/40 hover:text-white/70 text-sm mt-4 transition-colors">
               Forgot your password?
             </button>
-          </div>
-
-          <button
-            onClick={() => setMode("register")}
-            className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-white/70 hover:text-white text-sm font-medium"
-          >
-            <UserPlus className="w-4 h-4" />
-            New student? Register your account
-          </button>
-
-          {/* School year and semester */}
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <label className="text-xs text-white/40 mb-1 block ml-1">School Year</label>
-              <select
-                value={schoolYear}
-                onChange={(e) => setSchoolYear(e.target.value)}
-                className="w-full h-10 bg-white/5 border border-white/10 rounded-xl px-3 text-white/70 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
-              >
-                {schoolYears.map(y => (
-                  <option key={y} value={y} className="bg-slate-900">{y}</option>
-                ))}
-              </select>
-            </div>
-            <div className="flex-1">
-              <label className="text-xs text-white/40 mb-1 block ml-1">Semester</label>
-              <select
-                value={semester}
-                onChange={(e) => setSemester(e.target.value)}
-                className="w-full h-10 bg-white/5 border border-white/10 rounded-xl px-3 text-white/70 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
-              >
-                <option className="bg-slate-900">1st Semester</option>
-                <option className="bg-slate-900">2nd Semester</option>
-                <option className="bg-slate-900">Summer</option>
-              </select>
-            </div>
           </div>
 
           {/* Developer credits */}
