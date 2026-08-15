@@ -214,14 +214,14 @@ ipcMain.on("kiosk:desktop-mode", (_e, sessionInfo) => {
   });
 
   // Store reference so restore can close it
-  ;(app as any)._badge = badge;
+  app._badge = badge;
 });
 
 // Restore from desktop mode
 ipcMain.on("kiosk:restore", () => {
-  const badge = (app as any)._badge;
+  const badge = app._badge;
   if (badge && !badge.isDestroyed()) badge.close();
-  (app as any)._badge = null;
+  app._badge = null;
 
   if (mainWindow) {
     mainWindow.restore();

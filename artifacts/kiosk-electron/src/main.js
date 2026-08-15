@@ -1,10 +1,11 @@
 "use strict";
-const { app, BrowserWindow, globalShortcut, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, globalShortcut, ipcMain, shell, screen } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const os = require("node:os");
 
 let mainWindow = null;
+let badgeWindow = null;
 let isLocked = false;
 let isDesktopMode = false;
 
@@ -32,6 +33,8 @@ function loadConfig() {
 function lock() {
   if (!mainWindow) return;
   isLocked = true;
+  isDesktopMode = false;
+  closeBadge();
   mainWindow.setTitle("Aether LMS Kiosk");
   mainWindow.setFullScreen(true);
   mainWindow.setAlwaysOnTop(true, "screen-saver");
@@ -59,6 +62,100 @@ function unlock() {
   mainWindow.setMinimizable(true);
   mainWindow.show();
   mainWindow.focus();
+}
+
+// ─── Desktop mode — badge floats on the side, desktop stays visible ──────────
+function closeBadge() {
+  if (badgeWindow && !badgeWindow.isDestroyed()) {
+    const b = badgeWindow;
+    badgeWindow = null;
+    b.close();
+  }
+  badgeWindow = null;
+}
+
+function createBadge(sessionInfo) {
+  closeBadge();
+
+  const name = (sessionInfo && sessionInfo.name) ? sessionInfo.name : "Student";
+  const pc = String((sessionInfo && sessionInfo.computerNumber) ? sessionInfo.computerNumber : "?").padStart(2, "0");
+
+  const workArea = screen.getPrimaryDisplay().workArea;
+  const width = 300;
+  const height = 96;
+
+  badgeWindow = new BrowserWindow({
+    width,
+    height,
+    x: workArea.x + workArea.width - width - 16,
+    y: workArea.y + 16,
+    frame: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: false,
+    movable: true,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    backgroundColor: "#0f172a",
+    webPreferences: { contextIsolation: false, nodeIntegration: true },
+  });
+
+  const badgeHtml = `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#0f172a;font-family:sans-serif;overflow:hidden;-webkit-app-region:drag;user-select:none">
+  <div style="display:flex;flex-direction:column;gap:8px;padding:12px 14px;box-sizing:border-box">
+    <div style="display:flex;align-items:center;gap:8px">
+      <div style="width:8px;height:8px;border-radius:50%;background:#4ade80;animation:pulse 2s infinite;flex-shrink:0"></div>
+      <span style="color:white;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1">${name}</span>
+      <span style="color:rgba(255,255,255,0.5);font-size:11px;flex-shrink:0">PC ${pc}</span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button id="end" style="-webkit-app-region:no-drag;flex:1;background:#dc2626;color:white;border:none;border-radius:10px;padding:8px 0;font-size:12px;font-weight:600;cursor:pointer">End Session</button>
+      <button id="back" style="-webkit-app-region:no-drag;flex:1;background:#2563eb;color:white;border:none;border-radius:10px;padding:8px 0;font-size:12px;font-weight:600;cursor:pointer">↩ Session</button>
+    </div>
+  </div>
+  <style>@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}</style>
+  <script>
+    const { ipcRenderer } = require('electron');
+    document.getElementById('end').onclick  = () => ipcRenderer.send('kiosk:end-session');
+    document.getElementById('back').onclick = () => ipcRenderer.send('kiosk:restore');
+  </script>
+</body>
+</html>`;
+
+  badgeWindow.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(badgeHtml));
+
+  badgeWindow.on("closed", () => {
+    // Badge closed by hand — bring the kiosk window back
+    if (badgeWindow !== null) {
+      badgeWindow = null;
+      if (isDesktopMode) exitDesktopMode();
+    }
+  });
+}
+
+function enterDesktopMode(sessionInfo) {
+  if (!mainWindow || isDesktopMode) return;
+  isDesktopMode = true;
+  mainWindow.setTitle("Aether LMS Kiosk");
+  mainWindow.setAlwaysOnTop(false);
+  mainWindow.setFullScreen(false);
+  mainWindow.setMinimizable(true);
+  mainWindow.minimize();
+  createBadge(sessionInfo);
+}
+
+function exitDesktopMode() {
+  isDesktopMode = false;
+  closeBadge();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+    if (isLocked) lock();
+    mainWindow.webContents.send("kiosk:desktop-mode-changed", false);
+  }
 }
 
 // ─── Connect to server SSE for remote lock/unlock ─────────────────────────────
@@ -109,6 +206,9 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      // Keep timers/heartbeat running while minimized in desktop mode,
+      // so admin force-logout is detected promptly
+      backgroundThrottling: false,
     },
   });
 
@@ -143,44 +243,35 @@ function createWindow() {
 
   mainWindow.loadURL(serverUrl);
   mainWindow.on("close", (e) => { if (isLocked) e.preventDefault(); });
+
+  // Restored from the taskbar while in desktop mode — leave desktop mode
+  mainWindow.on("restore", () => {
+    if (isDesktopMode) exitDesktopMode();
+  });
 }
 
 // ─── IPC handlers ─────────────────────────────────────────────────────────────
 
 ipcMain.on("kiosk:lock", () => lock());
 ipcMain.on("kiosk:unlock", () => unlock());
-ipcMain.on("kiosk:set-locked", () => { });
+ipcMain.on("kiosk:set-locked", (_e, locked) => { if (locked) lock(); else unlock(); });
 
 // Desktop mode from React session hook
-ipcMain.on("kiosk:set-desktop-mode", (_e, enabled) => {
-  if (!mainWindow) return;
-  if (enabled && !isDesktopMode) {
-    isDesktopMode = true;
-    mainWindow.setMinimizable(true);
-    mainWindow.minimize();
-  }
+ipcMain.on("kiosk:set-desktop-mode", (_e, enabled, sessionInfo) => {
+  if (enabled) enterDesktopMode(sessionInfo);
+  else if (isDesktopMode) exitDesktopMode();
 });
 
 // Go to Desktop button
-ipcMain.on("kiosk:desktop-mode", (_e, sessionInfo) => {
-  if (!mainWindow) return;
-  isDesktopMode = true;
-  const name = (sessionInfo && sessionInfo.name) ? sessionInfo.name : "Student";
-  const pc = String((sessionInfo && sessionInfo.computerNumber) ? sessionInfo.computerNumber : "?").padStart(2, "0");
-  mainWindow.setTitle(`${name} | PC ${pc} — Click to return`);
-  mainWindow.setMinimizable(true);
-  mainWindow.minimize();
-});
+ipcMain.on("kiosk:desktop-mode", (_e, sessionInfo) => enterDesktopMode(sessionInfo));
 
 // Restore from desktop mode
-ipcMain.on("kiosk:restore", () => {
-  isDesktopMode = false;
-  if (mainWindow) {
-    mainWindow.setTitle("Aether LMS Kiosk");
-    mainWindow.restore();
-    mainWindow.show();
-    mainWindow.focus();
-    if (isLocked) lock();
+ipcMain.on("kiosk:restore", () => exitDesktopMode());
+
+// End Session button on the floating badge — forward to the React page
+ipcMain.on("kiosk:end-session", () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("kiosk:end-session");
   }
 });
 

@@ -6,6 +6,7 @@ const SESSION_STORAGE_KEY = "kiosk_active_session";
 
 const DEFAULT_INACTIVITY_LIMIT_MS = 5 * 60 * 1000;
 const DEFAULT_WARNING_BEFORE_MS   = 60 * 1000;
+const HEARTBEAT_INTERVAL_MS       = 10 * 1000;
 
 export interface SessionResponse {
   sessionId: number;
@@ -181,8 +182,7 @@ export function useKioskSession() {
       }
 
       // Heartbeat — check if session was force-ended by admin
-      // FIX: Uses timestamp delta instead of modulo division (now - lastHeartbeatRef >= 30,000ms)
-      if (now - lastHeartbeatRef.current >= 30000 && sessionRef.current) {
+      if (now - lastHeartbeatRef.current >= HEARTBEAT_INTERVAL_MS && sessionRef.current) {
         lastHeartbeatRef.current = now;
 
         fetch("/api/sessions/heartbeat", {

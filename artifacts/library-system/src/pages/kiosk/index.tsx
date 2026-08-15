@@ -33,7 +33,7 @@ import { useKioskSession } from "@/hooks/use-kiosk-session";
 import { Button } from "@/components/ui/button";
 import { cn, logZodError } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
-import { setKioskDesktopMode } from "@/lib/electron-kiosk";
+import { setKioskDesktopMode, onKioskDesktopModeChanged, onKioskEndSession, isElectronKiosk } from "@/lib/electron-kiosk";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -673,8 +673,18 @@ function ActiveSessionView({ session, elapsedSeconds, isWarning, onLogout, isLog
   useEffect(() => { requestNotificationPermission(); }, []);
 
   useEffect(() => {
-    setKioskDesktopMode(isDesktopMode);
+    setKioskDesktopMode(isDesktopMode, { name: session.name, computerNumber: session.computerNumber });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDesktopMode]);
+
+  // Electron shell events — badge "End Session" button + desktop-mode exits
+  const onLogoutRef = useRef(onLogout);
+  onLogoutRef.current = onLogout;
+  useEffect(() => {
+    const offDesktop = onKioskDesktopModeChanged((enabled) => setIsDesktopMode(enabled));
+    const offEnd = onKioskEndSession(() => onLogoutRef.current());
+    return () => { offDesktop(); offEnd(); };
+  }, []);
 
   useEffect(() => {
     if (isWarning && !warningNotifSent.current) {
@@ -718,7 +728,13 @@ function ActiveSessionView({ session, elapsedSeconds, isWarning, onLogout, isLog
     weekday: "long", year: "numeric", month: "long", day: "numeric",
   });
 
-  // ── Desktop Mode UI — transparent overlay with floating session badge ────
+  // ── Desktop Mode UI — the Electron shell minimizes the kiosk window and
+  // shows a native floating badge, so render nothing here. In a plain
+  // browser we keep the in-page floating badge as a fallback.
+  if (isDesktopMode && isElectronKiosk()) {
+    return null;
+  }
+
   if (isDesktopMode) {
     return (
       <div className="fixed inset-0 z-50 pointer-events-none">
