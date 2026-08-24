@@ -1,0 +1,48 @@
+=== FIX #1: Remove old students button not working ===
+File: artifacts/library-system/src/pages/admin/students.tsx
+Lines: 540-662
+
+CHANGE FROM:
+```typescript
+export default function AdminStudents() {
+  const { toast } = useToast();
+  const { courses, yearLevels, loaded } = useSystemSettings();
+  // ... other state variables ...
+  
+  // MISSING: authHeaders not defined!
+  const handleRemoveOldStudents = async () => {
+    for (const s of removedStudents) {
+      try {
+        await fetch(`/api/admin/students/${s.id}`, {
+          method: "DELETE",
+          headers: authHeaders as any,  // ← ERROR: authHeaders undefined
+        });
+      } catch { }
+    }
+```
+
+TO:
+```typescript
+export default function AdminStudents() {
+  const { toast } = useToast();
+  const { courses, yearLevels, loaded } = useSystemSettings();
+  const { authHeaders } = useAdminAuth();  // ← ADD THIS LINE
+  
+  // ... other state variables ...
+  
+  const handleRemoveOldStudents = async () => {
+    for (const s of removedStudents) {
+      try {
+        await fetch(`/api/admin/students/${s.id}`, {
+          method: "DELETE",
+          headers: authHeaders as any,  // ← NOW WORKS!
+        });
+      } catch { }
+    }
+    setShowRemoveConfirm(false);
+    setRemovedStudents([]);
+    toast({ title: `${removedStudents.length} students removed from the system.` });
+  };
+```
+
+KEY CHANGE: Add `const { authHeaders } = useAdminAuth();` after line 541 (after destructuring useSystemSettings)

@@ -1,0 +1,100 @@
+=== FIX #6: Ctrl+R should preserve session, not logout ===
+File: artifacts/kiosk-electron/src/main.js
+Lines: 77-136 and 284-286
+
+STEP 1: Make badge window secure (line 101):
+CHANGE FROM:
+```javascript
+  badgeWindow = new BrowserWindow({
+    width,
+    height,
+    x: workArea.x + workArea.width - width - 16,
+    y: workArea.y + 16,
+    frame: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: false,
+    movable: true,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    backgroundColor: "#0f172a",
+    webPreferences: { contextIsolation: false, nodeIntegration: true },  // ← INSECURE!
+  });
+
+  const badgeHtml = `<!DOCTYPE html>
+  <html>
+  <body ...>
+    <span>${name}</span>  <!-- ← UNESCAPED HTML! -->
+```
+
+TO:
+```javascript
+  badgeWindow = new BrowserWindow({
+    width,
+    height,
+    x: workArea.x + workArea.width - width - 16,
+    y: workArea.y + 16,
+    frame: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: false,
+    movable: true,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    backgroundColor: "#0f172a",
+    webPreferences: {
+      contextIsolation: true,      // ← SECURE: Enable isolation
+      nodeIntegration: false,        // ← SECURE: Disable node access
+      preload: path.join(__dirname, "preload.js"),  // ← Use preload for IPC
+    },
+  });
+
+  const badgeHtml = `<!DOCTYPE html>
+  <html>
+  <body ...>
+    <span id="student-name"></span>  <!-- ← NO INTERPOLATION -->
+    <span id="pc-number"></span>      <!-- ← NO INTERPOLATION -->
+    <script>
+      const { ipcRenderer } = require('electron');
+      document.getElementById('student-name').textContent = '${name}';  // Still needs escape
+      document.getElementById('pc-number').textContent = 'PC ' + '${pc}';
+```
+
+STEP 2: Fix Ctrl+R reload (around line 284):
+CHANGE FROM:
+```javascript
+  globalShortcut.register("Control+R", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.reload();
+  });
+```
+
+TO:
+```javascript
+  globalShortcut.register("Control+R", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      // Mark reload as intentional so unload handler doesn't logout
+      mainWindow.webContents.executeJavaScript(`
+        window.localStorage.setItem('kiosk_reload_in_progress', 'true');
+      `).then(() => {
+        mainWindow.webContents.reload();
+      });
+    }
+  });
+```
+
+STEP 3: Update preload.js to expose safe name-setting:
+Create/update artifacts/kiosk-electron/src/preload.js:
+```javascript
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('kioskBridge', {
+  setSessionInfo: (name, computerNumber) => {
+    ipcRenderer.invoke('set-badge-info', { name, computerNumber });
+  },
+  onReload: (callback) => {
+    ipcRenderer.on('kiosk:reload', callback);
+  },
+});
+```
