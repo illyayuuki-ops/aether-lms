@@ -5,6 +5,8 @@ import { eq, and, gte, lte, sql, count, avg } from "drizzle-orm";
 import { z } from "zod";
 import fs from "node:fs";
 import path from "node:path";
+import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
 import {
   GetAllSessionsQueryParams,
   GetStatsQueryParams,
@@ -15,16 +17,48 @@ import analyticsRouter from "./analytics";
 
 const router: IRouter = Router();
 
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "library-admin-secret-token-2024";
+function isBcryptHash(value: string): boolean {
+  return value.startsWith("$2a$") || value.startsWith("$2b$") || value.startsWith("$2y$");
+}
+
+async function verifyPassword(plain: string, stored: string): Promise<boolean> {
+  if (isBcryptHash(stored)) {
+    try {
+      return await bcrypt.compare(plain, stored);
+    } catch {
+      return false;
+    }
+  }
+  return plain === stored;
+}
+
+const JWT_SECRET = process.env.JWT_SECRET || "library-jwt-secret-change-me";
+const JWT_EXPIRY = "8h";
 const TOTAL_COMPUTERS = 20;
+
+declare module "express" {
+  interface Request {
+    adminId?: number;
+    adminRole?: string;
+  }
+}
 
 function requireAdmin(req: Request, res: Response, next: NextFunction) {
   const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith("Bearer ") || auth.slice(7) !== ADMIN_TOKEN) {
+  if (!auth || !auth.startsWith("Bearer ")) {
     res.status(401).json({ error: "unauthorized", message: "Admin access required." });
     return;
   }
-  next();
+
+  const token = auth.slice(7);
+  try {
+    const payload = jwt.verify(token, JWT_SECRET) as { adminId: number; role: string };
+    req.adminId = payload.adminId;
+    req.adminRole = payload.role;
+    next();
+  } catch {
+    res.status(401).json({ error: "token_expired", message: "Admin session expired. Please log in again." });
+  }
 }
 
 const AdminLoginSchema = z.object({
@@ -63,13 +97,23 @@ router.post("/login", async (req, res) => {
     .where(and(eq(adminsTable.username, username), eq(adminsTable.isActive, true)))
     .limit(1);
 
-  if (admin && admin.password === password) {
-    await db
-      .update(adminsTable)
-      .set({ lastLoginAt: new Date() })
-      .where(eq(adminsTable.id, admin.id));
-    res.json({ token: ADMIN_TOKEN, role: admin.role, username: admin.username, message: "Login successful" });
-    return;
+  if (admin) {
+    const passwordValid = await verifyPassword(password, admin.password);
+    if (passwordValid) {
+      await db
+        .update(adminsTable)
+        .set({ lastLoginAt: new Date() })
+        .where(eq(adminsTable.id, admin.id));
+
+      const token = jwt.sign(
+        { adminId: admin.id, role: admin.role },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRY }
+      );
+
+      res.json({ token, role: admin.role, username: admin.username, message: "Login successful" });
+      return;
+    }
   }
 
   res.status(401).json({ error: "invalid_credentials", message: "Incorrect username or password." });
@@ -252,7 +296,7 @@ const DEFAULT_SYSTEM_SETTINGS = {
   yearLevels: ["1","2","3","4","5","6","7","8","9","10","11","12"],
 };
 
-function loadSettings() {
+export function loadSettings() {
   try {
     if (fs.existsSync(SETTINGS_FILE)) {
       const raw = fs.readFileSync(SETTINGS_FILE, "utf8");
@@ -262,7 +306,7 @@ function loadSettings() {
   return { ...DEFAULT_SYSTEM_SETTINGS };
 }
 
-function saveSettings(settings: typeof DEFAULT_SYSTEM_SETTINGS) {
+export function saveSettings(settings: typeof DEFAULT_SYSTEM_SETTINGS) {
   try { fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), "utf8"); } catch { }
 }
 

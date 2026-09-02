@@ -540,8 +540,9 @@ function DuplicateModal({ duplicates, onEdit, onContinue, onCancel }: {
 export default function AdminStudents() {
   const { toast } = useToast();
   const { courses, yearLevels, loaded } = useSystemSettings();
+  const { authHeaders } = useAdminAuth();
 
-  const [page, setPage]               = useState(1);
+  const [page, setPage] = useState(1);
   const [search, setSearch]           = useState("");
   const [searchInput, setSearchInput] = useState("");
 

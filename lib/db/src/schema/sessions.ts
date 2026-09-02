@@ -16,6 +16,7 @@ export const sessionsTable = pgTable("sessions", {
   durationMinutes: integer("duration_minutes"),
   logoutReason: text("logout_reason"),
   isActive: boolean("is_active").notNull().default(true),
+  sessionToken: text("session_token").notNull().default(""),
 });
 
 export const insertSessionSchema = createInsertSchema(sessionsTable).omit({
@@ -23,6 +24,7 @@ export const insertSessionSchema = createInsertSchema(sessionsTable).omit({
   loginTime: true,
   lastActivity: true,
   isActive: true,
+  sessionToken: true,
 });
 
 export type InsertSession = z.infer<typeof insertSessionSchema>;

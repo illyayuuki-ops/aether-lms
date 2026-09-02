@@ -122,6 +122,14 @@ export function AdminLayout({ children }: AdminLayoutProps) {
             {broadcasting ? "Sending..." : allLocked ? "Unlock All PCs" : "Lock All PCs"}
           </Button>
 
+          {/* Hotkey reminders */}
+          <div className="text-xs text-primary-foreground/40 space-y-1 px-2 pt-2">
+            <p className="font-semibold text-primary-foreground/60">Hotkeys (on kiosk PCs):</p>
+            <p>Ctrl+M — Force close kiosk</p>
+            <p>Ctrl+Q — Quit kiosk (unlocked only)</p>
+            <p>Ctrl+R — Reload without ending session</p>
+          </div>
+
           {/* Lock / Unlock this screen only */}
           <Button
             variant="ghost"

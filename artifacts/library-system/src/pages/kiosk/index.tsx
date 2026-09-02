@@ -74,7 +74,18 @@ type KioskMode = "login" | "register" | "forgot";
 
 // ─── Instructions Sheet — pull-out student guide on the left side ────────────
 
-function InstructionsSheet() {
+function InstructionsSheet({ forceOpen, onClose }: { forceOpen?: boolean; onClose?: () => void }) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (forceOpen) setOpen(true);
+  }, [forceOpen]);
+
+  const handleClose = () => {
+    setOpen(false);
+    onClose?.();
+  };
+
   const steps: { title: string; body: ReactNode }[] = [
     { title: "1. Log in", body: <>Enter your <strong>Student ID</strong> (format <span className="font-mono">YY-NNNNN</span>, e.g. <span className="font-mono">24-12913</span>) and your password, then press <strong>Start Session</strong>.</> },
     { title: "2. First time?", body: <>Your default password is your <strong>Student ID</strong>. You will be asked to set a personal password on your first login.</> },
@@ -85,17 +96,19 @@ function InstructionsSheet() {
   ];
 
   return (
-    <Sheet>
-      <SheetTrigger asChild>
-        <button
-          className="fixed left-0 top-1/2 -translate-y-1/2 z-50 flex items-center gap-2 pl-3 pr-4 py-3 rounded-r-2xl bg-white/10 backdrop-blur-md border border-l-0 border-white/20 text-white/70 hover:text-white hover:bg-white/20 transition-all shadow-lg"
-          aria-label="Open instructions"
-        >
-          <BookOpen className="w-5 h-5" />
-          <span className="text-sm font-medium [writing-mode:vertical-rl] rotate-180 tracking-wide">Instructions</span>
-        </button>
-      </SheetTrigger>
-      <SheetContent side="left" className="bg-[#101a2e] border-white/10 text-white overflow-y-auto w-[340px] sm:max-w-[340px]">
+    <Sheet open={open} onOpenChange={(v) => { if (!v) handleClose(); else setOpen(v); }}>
+      {!isElectronKiosk() && (
+        <SheetTrigger asChild>
+          <button
+            className="fixed left-0 top-1/2 -translate-y-1/2 z-50 flex items-center gap-2 pl-3 pr-4 py-3 rounded-r-2xl bg-white/10 backdrop-blur-md border border-l-0 border-white/20 text-white/70 hover:text-white hover:bg-white/20 transition-all shadow-lg"
+            aria-label="Open instructions"
+          >
+            <BookOpen className="w-5 h-5" />
+            <span className="text-sm font-medium [writing-mode:vertical-rl] rotate-180 tracking-wide">Instructions</span>
+          </button>
+        </SheetTrigger>
+      )}
+      <SheetContent side="left" className="bg-[#101a2e] border-white/10 text-white overflow-y-auto w-[340px] sm:max-w-[340px]" onClose={handleClose}>
         <SheetHeader>
           <SheetTitle className="text-white flex items-center gap-2">
             <BookOpen className="w-5 h-5 text-accent" /> How to Use This PC
@@ -130,6 +143,7 @@ function formatStudentId(raw: string): string {
 export default function KioskPage() {
   const { session, elapsedSeconds, isWarning, login, logout, isLoggingOut } = useKioskSession();
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [showInstructions, setShowInstructions] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -139,18 +153,26 @@ export default function KioskPage() {
 
   if (session) {
     return (
-      <ActiveSessionView
-        session={session}
-        elapsedSeconds={elapsedSeconds}
-        isWarning={isWarning}
-        onLogout={logout}
-        isLoggingOut={isLoggingOut}
-        currentTime={currentTime}
-      />
+      <>
+        <ActiveSessionView
+          session={session}
+          elapsedSeconds={elapsedSeconds}
+          isWarning={isWarning}
+          onLogout={logout}
+          isLoggingOut={isLoggingOut}
+          currentTime={currentTime}
+        />
+        <InstructionsSheet forceOpen={showInstructions} onClose={() => setShowInstructions(false)} />
+      </>
     );
   }
 
-  return <LoginView onLogin={login} currentTime={currentTime} />;
+  return (
+    <>
+      <LoginView onLogin={(s) => { login(s); setShowInstructions(true); }} currentTime={currentTime} />
+      <InstructionsSheet forceOpen={showInstructions} onClose={() => setShowInstructions(false)} />
+    </>
+  );
 }
 
 // ─── Self-Service Panel ───────────────────────────────────────────────────────
@@ -664,7 +686,7 @@ function LoginView({ onLogin, currentTime }: { onLogin: (s: any) => void; curren
 // ─── Active Session View ──────────────────────────────────────────────────────
 
 function ActiveSessionView({ session, elapsedSeconds, isWarning, onLogout, isLoggingOut, currentTime }: any) {
-  const INACTIVITY_LIMIT_SECS = 5 * 60;
+  const INACTIVITY_LIMIT_SECS = (session.inactivityLimitMinutes ?? 10) * 60;
   const warningNotifSent = useRef(false);
   const logoutNotifSent  = useRef(false);
 
@@ -823,7 +845,7 @@ function ActiveSessionView({ session, elapsedSeconds, isWarning, onLogout, isLog
                 </div>
                 <div className="bg-secondary/50 p-4 rounded-xl">
                   <p className="text-xs text-muted-foreground">Auto-logout After</p>
-                  <p className="font-semibold">5 min idle</p>
+                  <p className="font-semibold">{session.inactivityLimitMinutes ?? 10} min idle</p>
                 </div>
               </div>
             </div>

@@ -3,8 +3,26 @@ import { db } from "@workspace/db";
 import { sessionsTable, studentsTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
+import { loadSettings } from "../routes/admin";
+import crypto from "node:crypto";
+import bcrypt from "bcrypt";
 
 const router: IRouter = Router();
+
+function isBcryptHash(value: string): boolean {
+  return value.startsWith("$2a$") || value.startsWith("$2b$") || value.startsWith("$2y$");
+}
+
+async function verifyPassword(plain: string, stored: string): Promise<boolean> {
+  if (isBcryptHash(stored)) {
+    try {
+      return await bcrypt.compare(plain, stored);
+    } catch {
+      return false;
+    }
+  }
+  return plain === stored;
+}
 
 // ─── Validation ───────────────────────────────────────────────────────────────
 
@@ -122,7 +140,8 @@ router.post("/login", async (req, res) => {
     return;
   }
 
-  if (student.password !== password) {
+  const passwordValid = await verifyPassword(password, student.password);
+  if (!passwordValid) {
     res.status(401).json({ error: "wrong_password", message: "Incorrect password." });
     return;
   }
@@ -152,6 +171,8 @@ router.post("/login", async (req, res) => {
   }
 
   // Create session
+  const sessionToken = crypto.randomBytes(32).toString("hex");
+
   const [session] = await db
     .insert(sessionsTable)
     .values({
@@ -163,6 +184,7 @@ router.post("/login", async (req, res) => {
       loginTime:      new Date(),
       lastActivity:   new Date(),
       isActive:       true,
+      sessionToken,
     })
     .returning();
 
@@ -175,19 +197,15 @@ router.post("/login", async (req, res) => {
     computerNumber:     session.computerNumber,
     loginTime:          session.loginTime,
     mustChangePassword: student.mustChangePassword,
-    // Configurable limits — frontend uses these for the timer
-    inactivityLimitMinutes: 10,
-    sessionTimeLimitMinutes: 60,
+    sessionToken,
+    inactivityLimitMinutes: loadSettings().inactivityLimitMinutes,
+    sessionTimeLimitMinutes: loadSettings().sessionTimeLimitMinutes,
   });
 });
 
 // ─── Logout ───────────────────────────────────────────────────────────────────
 
 router.post("/logout", async (req, res) => {
-  // FIX: navigator.sendBeacon() sends the body as a Blob with type
-  // "application/json", but some browsers/versions deliver it to Express
-  // as a raw string rather than a parsed object. This normalizes both
-  // cases so logout works whether triggered by fetch() or sendBeacon().
   let body: any = req.body ?? {};
   if (typeof body === "string") {
     try { body = JSON.parse(body); } catch { body = {}; }
@@ -196,7 +214,7 @@ router.post("/logout", async (req, res) => {
     try { body = JSON.parse(body.toString("utf8")); } catch { body = {}; }
   }
 
-  const { sessionId, reason } = body;
+  const { sessionId, reason, sessionToken } = body;
 
   if (!sessionId) {
     res.status(400).json({ error: "missing", message: "sessionId is required." });
@@ -215,8 +233,12 @@ router.post("/logout", async (req, res) => {
   }
 
   if (!session.isActive) {
-    // Already logged out — return success anyway (idempotent)
     res.json({ success: true, message: "Session already ended." });
+    return;
+  }
+
+  if (session.sessionToken && session.sessionToken !== sessionToken) {
+    res.status(403).json({ error: "forbidden", message: "Invalid session token." });
     return;
   }
 
@@ -242,24 +264,41 @@ router.post("/heartbeat", async (req, res) => {
   const { sessionId } = req.body ?? {};
   if (!sessionId) { res.status(400).json({ error: "missing" }); return; }
 
-  // Check if session is still active
   const [session] = await db
-    .select({ id: sessionsTable.id, isActive: sessionsTable.isActive })
+    .select({ 
+      id: sessionsTable.id, 
+      isActive: sessionsTable.isActive, 
+      loginTime: sessionsTable.loginTime 
+    })
     .from(sessionsTable)
     .where(eq(sessionsTable.id, sessionId))
     .limit(1);
 
-  // Session not found or was force-ended by admin
   if (!session) { res.json({ active: false, error: "not_found" }); return; }
   if (!session.isActive) { res.json({ active: false, error: "session_ended" }); return; }
 
-  // Update last activity
-  await db
-    .update(sessionsTable)
-    .set({ lastActivity: new Date() })
+  const settings = loadSettings();
+  const elapsedMinutes = (Date.now() - session.loginTime.getTime()) / 60000;
+  if (elapsedMinutes > settings.sessionTimeLimitMinutes) {
+    const now = new Date();
+    await db.update(sessionsTable).set({
+      isActive: false,
+      logoutTime: now,
+      durationMinutes: Math.round((now.getTime() - session.loginTime.getTime()) / 60000),
+      logoutReason: "time_limit",
+    }).where(eq(sessionsTable.id, sessionId));
+    return res.json({ active: false, error: "time_limit" });
+  }
+
+  await db.update(sessionsTable).set({ lastActivity: new Date() })
     .where(and(eq(sessionsTable.id, sessionId), eq(sessionsTable.isActive, true)));
 
-  res.json({ success: true, active: true });
+  res.json({
+    success: true,
+    active: true,
+    sessionTimeLimitMinutes: settings.sessionTimeLimitMinutes,
+    remainingMinutes: Math.max(0, settings.sessionTimeLimitMinutes - elapsedMinutes),
+  });
 });
 
 // ─── Change password ──────────────────────────────────────────────────────────

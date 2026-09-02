@@ -5,6 +5,7 @@ packages:
   - scripts
 
 allowBuilds:
+  bcrypt: true
   electron: true
   esbuild: true
 

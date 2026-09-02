@@ -3,6 +3,8 @@ import { logger } from "./lib/logger";
 import { db } from "@workspace/db";
 import { sessionsTable, adminsTable } from "@workspace/db/schema";
 import { eq, lt, and } from "drizzle-orm";
+import { loadSettings } from "./routes/admin";
+import bcrypt from "bcrypt";
 
 const rawPort = process.env["PORT"];
 if (!rawPort) throw new Error("PORT environment variable is required.");
@@ -20,9 +22,10 @@ async function seedMasterAdmin() {
       .limit(1);
 
     if (!existing) {
+      const hashedPassword = await bcrypt.hash(masterPassword, 10);
       await db.insert(adminsTable).values({
         username: masterUsername,
-        password: masterPassword,
+        password: hashedPassword,
         role: "super_admin",
         isActive: true,
       });
@@ -37,29 +40,25 @@ async function seedMasterAdmin() {
 
 async function sweepGhostSessions() {
   try {
-    const inactivityMinutes = parseInt(process.env.INACTIVITY_LIMIT_MINUTES || "5");
+    const settings = loadSettings();
+    const inactivityMinutes = settings.inactivityLimitMinutes;
     const cutoff = new Date(Date.now() - inactivityMinutes * 60 * 1000);
-
-    const staleSessions = await db
-      .select({ id: sessionsTable.id, loginTime: sessionsTable.loginTime })
-      .from(sessionsTable)
-      .where(and(eq(sessionsTable.isActive, true), lt(sessionsTable.lastActivity, cutoff)));
-
-    if (staleSessions.length === 0) return;
 
     const now = new Date();
 
-    for (const s of staleSessions) {
-      const durationMinutes = Math.round(
-        (now.getTime() - s.loginTime.getTime()) / 60000
-      );
-      await db
-        .update(sessionsTable)
-        .set({ isActive: false, logoutTime: now, durationMinutes, logoutReason: "inactivity" })
-        .where(eq(sessionsTable.id, s.id));
-    }
+    await db
+      .update(sessionsTable)
+      .set({
+        isActive: false,
+        logoutTime: now,
+        logoutReason: "inactivity",
+      })
+      .where(and(
+        eq(sessionsTable.isActive, true),
+        lt(sessionsTable.lastActivity, cutoff)
+      ));
 
-    logger.info({ count: staleSessions.length }, "Ghost sweeper: closed stale sessions.");
+    logger.info({ inactivityMinutes }, "Ghost sweeper: closed stale sessions.");
   } catch (error) {
     logger.error({ error }, "Error during ghost session sweep");
   }

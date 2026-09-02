@@ -4,7 +4,6 @@ import { setKioskLocked } from "@/lib/electron-kiosk";
 
 const SESSION_STORAGE_KEY = "kiosk_active_session";
 
-const DEFAULT_INACTIVITY_LIMIT_MS = 5 * 60 * 1000;
 const DEFAULT_WARNING_BEFORE_MS   = 60 * 1000;
 const HEARTBEAT_INTERVAL_MS       = 10 * 1000;
 
@@ -19,6 +18,7 @@ export interface SessionResponse {
   loginTime: string;
   timeLimitMinutes: number;
   inactivityLimitMinutes: number;
+  sessionToken: string;
   mustChangePassword?: boolean;
 }
 
@@ -84,8 +84,15 @@ export function useKioskSession() {
     const handleUnload = () => {
       const currentSession = sessionRef.current;
       if (!currentSession) return;
+      
+      const isReload = localStorage.getItem('kiosk_reload_in_progress') === 'true';
+      if (isReload) {
+        localStorage.removeItem('kiosk_reload_in_progress');
+        return;
+      }
+      
       const blob = new Blob(
-        [JSON.stringify({ sessionId: currentSession.sessionId, reason: "manual" })],
+        [JSON.stringify({ sessionId: currentSession.sessionId, sessionToken: currentSession.sessionToken, reason: "manual" })],
         { type: "application/json" }
       );
       navigator.sendBeacon("/api/sessions/logout", blob);
@@ -110,7 +117,7 @@ export function useKioskSession() {
         await fetch("/api/sessions/logout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId: currentSession.sessionId, reason }),
+          body: JSON.stringify({ sessionId: currentSession.sessionId, sessionToken: currentSession.sessionToken, reason }),
         });
       } catch {
         // Ghost sweeper will close it server-side if fetch fails
@@ -148,7 +155,8 @@ export function useKioskSession() {
     }
 
     const loginTimeMs       = new Date(session.loginTime).getTime();
-    const inactivityLimitMs = (session.inactivityLimitMinutes ?? 5) * 60 * 1000;
+    const inactivityLimitMs = (session.inactivityLimitMinutes ?? 10) * 60 * 1000;
+    const sessionTimeLimitMs = (session.timeLimitMinutes ?? 60) * 60 * 1000;
     const warningMs         = inactivityLimitMs - DEFAULT_WARNING_BEFORE_MS;
 
     lastActivityRef.current  = Date.now();
@@ -166,6 +174,12 @@ export function useKioskSession() {
       const inactiveMs = now - lastActivityRef.current;
 
       setElapsedSeconds(elapsed);
+
+      if (elapsed >= sessionTimeLimitMs && !isLoggingOutRef.current) {
+        clearInterval(interval);
+        handleLogout("time_limit");
+        return;
+      }
 
       if (inactiveMs >= inactivityLimitMs && !isLoggingOutRef.current) {
         clearInterval(interval);

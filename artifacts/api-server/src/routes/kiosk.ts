@@ -1,20 +1,37 @@
 import { Router, Request, Response, NextFunction } from "express";
+import jwt from "jsonwebtoken";
 
 const router = Router();
 
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "library-admin-secret-token-2024";
+const JWT_SECRET = process.env.JWT_SECRET || "library-jwt-secret-change-me";
+
+declare module "express" {
+  interface Request {
+    adminId?: number;
+    adminRole?: string;
+  }
+}
 
 function requireAdmin(req: Request, res: Response, next: NextFunction) {
   const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith("Bearer ") || auth.slice(7) !== ADMIN_TOKEN) {
+  if (!auth || !auth.startsWith("Bearer ")) {
     res.status(401).json({ error: "unauthorized" });
     return;
   }
-  next();
+
+  const token = auth.slice(7);
+  try {
+    const payload = jwt.verify(token, JWT_SECRET) as { adminId: number; role: string };
+    req.adminId = payload.adminId;
+    req.adminRole = payload.role;
+    next();
+  } catch {
+    res.status(401).json({ error: "token_expired" });
+  }
 }
 
 // Store all connected kiosk SSE clients
-const kioskClients = new Map<string, Response>();
+const kioskClients = new Map<string, Response[]>();
 
 // ── SSE endpoint — each kiosk connects here on startup ──────────────────────
 router.get("/events", (req, res) => {
@@ -28,7 +45,10 @@ router.get("/events", (req, res) => {
     || req.socket.remoteAddress
     || `unknown-${Date.now()}`;
 
-  kioskClients.set(clientIp, res);
+  const clients = kioskClients.get(clientIp) ?? [];
+  clients.push(res);
+  kioskClients.set(clientIp, clients);
+
   res.write(`data: ${JSON.stringify({ type: "connected", clientId: clientIp })}\n\n`);
 
   const keepAlive = setInterval(() => {
@@ -37,7 +57,13 @@ router.get("/events", (req, res) => {
 
   req.on("close", () => {
     clearInterval(keepAlive);
-    kioskClients.delete(clientIp);
+    const current = kioskClients.get(clientIp) ?? [];
+    const filtered = current.filter((c) => c !== res);
+    if (filtered.length === 0) {
+      kioskClients.delete(clientIp);
+    } else {
+      kioskClients.set(clientIp, filtered);
+    }
   });
 });
 
@@ -53,10 +79,16 @@ router.post("/broadcast", requireAdmin, (req, res) => {
   let sent = 0;
 
   if (targetIp) {
-    const client = kioskClients.get(targetIp);
-    if (client) { client.write(message); sent = 1; }
+    const clients = kioskClients.get(targetIp) ?? [];
+    for (const client of clients) {
+      if (!client.destroyed) { client.write(message); sent++; }
+    }
   } else {
-    kioskClients.forEach((client) => { client.write(message); sent++; });
+    kioskClients.forEach((clients) => {
+      for (const client of clients) {
+        if (!client.destroyed) { client.write(message); sent++; }
+      }
+    });
   }
 
   return res.json({ success: true, sent, total: kioskClients.size });
@@ -64,7 +96,12 @@ router.post("/broadcast", requireAdmin, (req, res) => {
 
 // ── How many kiosks are connected ───────────────────────────────────────────
 router.get("/status", requireAdmin, (_req, res) => {
-  res.json({ connected: kioskClients.size, clients: Array.from(kioskClients.keys()) });
+  const clients = Array.from(kioskClients.entries()).map(([ip, conns]) => ({
+    ip,
+    connections: conns.length,
+  }));
+  const total = clients.reduce((sum, c) => sum + c.connections, 0);
+  res.json({ connected: total, clients });
 });
 
 export default router;

@@ -21,12 +21,16 @@ function loadConfig() {
   for (const p of configPaths) {
     try {
       if (fs.existsSync(p)) {
-        const parsed = JSON.parse(fs.readFileSync(p, "utf8").replace(/^\uFEFF/, ""));
-        if (parsed.serverUrl) return parsed.serverUrl.replace(/\/+$/, "");
+        const raw = fs.readFileSync(p, "utf8").replace(/^\uFEFF/, "");
+        const parsed = JSON.parse(raw);
+        if (parsed.serverUrl) {
+          parsed.serverUrl = parsed.serverUrl.replace(/\/+$/, "");
+          return parsed;
+        }
       }
     } catch { }
   }
-  return "http://localhost:3000";
+  return { serverUrl: "http://localhost:3000", autoLaunch: true };
 }
 
 // ─── Lock / Unlock ────────────────────────────────────────────────────────────
@@ -40,9 +44,7 @@ function lock() {
   mainWindow.setAlwaysOnTop(true, "screen-saver");
   mainWindow.setMenuBarVisibility(false);
   mainWindow.setClosable(false);
-  // Keep minimizable TRUE so Go to Desktop still works when locked
   mainWindow.setMinimizable(true);
-  mainWindow.setSkipTaskbar(false);
   mainWindow.show();
   mainWindow.focus();
   for (const a of ["Alt+F4", "Super", "Super+D", "Super+L", "Super+R", "Super+Tab", "Ctrl+Escape"]) {
@@ -74,10 +76,19 @@ function closeBadge() {
   badgeWindow = null;
 }
 
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function createBadge(sessionInfo) {
   closeBadge();
 
-  const name = (sessionInfo && sessionInfo.name) ? sessionInfo.name : "Student";
+  const name = escapeHtml((sessionInfo && sessionInfo.name) ? sessionInfo.name : "Student");
   const pc = String((sessionInfo && sessionInfo.computerNumber) ? sessionInfo.computerNumber : "?").padStart(2, "0");
 
   const workArea = screen.getPrimaryDisplay().workArea;
@@ -98,7 +109,11 @@ function createBadge(sessionInfo) {
     maximizable: false,
     fullscreenable: false,
     backgroundColor: "#0f172a",
-    webPreferences: { contextIsolation: false, nodeIntegration: true },
+    webPreferences: {
+      contextIsolation: false,
+      nodeIntegration: true,
+      sandbox: false,
+    },
   });
 
   const badgeHtml = `<!DOCTYPE html>
@@ -191,7 +206,8 @@ function connectToServerEvents(serverUrl) {
 
 // ─── Create window ────────────────────────────────────────────────────────────
 function createWindow() {
-  const serverUrl = loadConfig();
+  const config = loadConfig();
+  const serverUrl = config.serverUrl;
 
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -201,13 +217,12 @@ function createWindow() {
     autoHideMenuBar: true,
     backgroundColor: "#0f172a",
     title: "Aether LMS Kiosk",
+    skipTaskbar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
-      // Keep timers/heartbeat running while minimized in desktop mode,
-      // so admin force-logout is detected promptly
       backgroundThrottling: false,
     },
   });
@@ -277,12 +292,30 @@ ipcMain.on("kiosk:end-session", () => {
 
 // ─── Global shortcuts ─────────────────────────────────────────────────────────
 app.whenReady().then(() => {
-  const serverUrl = loadConfig();
+  const config = loadConfig();
+  const serverUrl = config.serverUrl;
+
+  if (config.autoLaunch !== false) {
+    app.setLoginItemSettings({
+      openAtLogin: true,
+      openAsHidden: false,
+      name: "Aether LMS Kiosk",
+    });
+  }
+
   createWindow();
   connectToServerEvents(serverUrl);
 
   globalShortcut.register("Control+R", () => {
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.reload();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.executeJavaScript(`
+        window.localStorage.setItem('kiosk_reload_in_progress', 'true');
+      `).then(() => {
+        mainWindow.webContents.reload();
+      }).catch(() => {
+        mainWindow.webContents.reload();
+      });
+    }
   });
   globalShortcut.register("Control+M", () => {
     isLocked = false;

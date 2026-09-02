@@ -1,5 +1,6 @@
 {
   "serverUrl": "http://localhost:3000",
   "emergencyPin": "260306",
-  "comment": "Change serverUrl to your ADMIN PC's IP address on the school network for student PCs"
+  "autoLaunch": true,
+  "comment": "Change serverUrl to your ADMIN PC's IP address on the school network for student PCs. Set autoLaunch to false to disable auto-start on Windows login."
 }

@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { studentsTable } from "@workspace/db/schema";
 import { eq, and, sql, count } from "drizzle-orm";
 import { z } from "zod";
+import bcrypt from "bcrypt";
 
 const router: IRouter = Router();
 
@@ -120,6 +121,7 @@ router.post("/", async (req, res) => {
   }
 
   const password = parsed.data.password ?? parsed.data.studentId;
+  const hashedPassword = await bcrypt.hash(password, 10);
 
   const [created] = await db
     .insert(studentsTable)
@@ -129,7 +131,7 @@ router.post("/", async (req, res) => {
       degree:             parsed.data.degree,
       major:              parsed.data.major ?? null,
       yearLevel:          parsed.data.yearLevel,
-      password,
+      password:           hashedPassword,
       mustChangePassword: false,
       isActive:           parsed.data.isActive ?? true,
     })
@@ -204,7 +206,7 @@ router.put("/:id", async (req, res) => {
   };
 
   if (parsed.data.password) {
-    updatePayload.password             = parsed.data.password;
+    updatePayload.password             = await bcrypt.hash(parsed.data.password, 10);
     updatePayload.mustChangePassword   = false;
   }
 
@@ -253,10 +255,12 @@ router.post("/:id/reset-password", async (req, res) => {
     return;
   }
 
+  const hashedPassword = await bcrypt.hash(parsed.data.newPassword, 10);
+
   await db
     .update(studentsTable)
     .set({
-      password:           parsed.data.newPassword,
+      password:           hashedPassword,
       mustChangePassword: parsed.data.mustChangePassword,
       updatedAt:          new Date(),
     })

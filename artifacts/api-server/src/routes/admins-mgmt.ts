@@ -3,10 +3,13 @@ import { db } from "@workspace/db";
 import { adminsTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 
 const router: IRouter = Router();
 
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "library-admin-secret-token-2024";
+const JWT_SECRET = process.env.JWT_SECRET || "library-jwt-secret-change-me";
+const JWT_EXPIRY = "8h";
 
 // ─── Zod Schemas ─────────────────────────────────────────────────────────────
 
@@ -42,22 +45,7 @@ const adminReturnFields = {
 // Falls back to x-admin-role header for direct API calls.
 
 async function getCallerRole(req: Request): Promise<string> {
-  // Try header first (fastest)
-  const headerRole = req.headers["x-admin-role"] as string | undefined;
-  if (headerRole === "super_admin") return "super_admin";
-
-  // Verify by looking up the username from DB
-  const callerUsername = req.headers["x-caller-username"] as string | undefined;
-  if (callerUsername) {
-    const [admin] = await db
-      .select({ role: adminsTable.role })
-      .from(adminsTable)
-      .where(eq(adminsTable.username, callerUsername))
-      .limit(1);
-    if (admin?.role) return admin.role;
-  }
-
-  return "librarian";
+  return (req as any).adminRole || "librarian";
 }
 
 function isSuperAdminProtected(req: Request): boolean {
@@ -107,7 +95,7 @@ router.post("/", async (req, res) => {
     .insert(adminsTable)
     .values({
       username:   parsed.data.username,
-      password:   parsed.data.password,
+      password:   await bcrypt.hash(parsed.data.password, 10),
       role:       parsed.data.role,
       isActive:   parsed.data.isActive,
       ...(parsed.data.secretCode ? { secretCode: parsed.data.secretCode } as any : {}),
@@ -150,7 +138,7 @@ router.put("/:id", async (req, res) => {
 
   const updateData: any = {};
   if (parsed.data.username   !== undefined) updateData.username   = parsed.data.username;
-  if (parsed.data.password   !== undefined) updateData.password   = parsed.data.password;
+  if (parsed.data.password   !== undefined) updateData.password   = await bcrypt.hash(parsed.data.password, 10);
   if (parsed.data.role       !== undefined) updateData.role       = parsed.data.role;
   if (parsed.data.isActive   !== undefined) updateData.isActive   = parsed.data.isActive;
   if ((parsed.data as any).secretCode !== undefined) updateData.secretCode = (parsed.data as any).secretCode;

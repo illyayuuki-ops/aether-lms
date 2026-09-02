@@ -1,0 +1,1 @@
+{"version":3,"file":"pc-settings.d.ts","sourceRoot":"","sources":["../../src/schema/pc-settings.ts"],"names":[],"mappings":"AAIA,eAAO,MAAM,eAAe;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;EAO1B,CAAC;AAEH,MAAM,MAAM,SAAS,GAAG,OAAO,eAAe,CAAC,YAAY,CAAC;AAC5D,MAAM,MAAM,eAAe,GAAG,OAAO,eAAe,CAAC,YAAY,CAAC"}

@@ -86,10 +86,11 @@ function LoginForm({ onForgot, onSetup }: { onForgot: () => void; onSetup: () =>
       {/* Librarian instructions */}
       <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-6 text-sm text-blue-800 space-y-1">
         <p className="font-semibold text-blue-900">📋 Librarian Guide:</p>
-        <p>• Default login: <strong>admin</strong> / <strong>admin123</strong></p>
         <p>• After logging in, go to <strong>Settings → PC Mappings</strong> to assign IP addresses to each PC</p>
         <p>• Use <strong>Lock All PCs</strong> in the sidebar to lock all student computers at once</p>
-        <p>• Press <strong>Ctrl+M</strong> anytime to force-close the kiosk app</p>
+        <p>• Press <strong>Ctrl+M</strong> to force-close the kiosk app on the librarian PC</p>
+        <p>• Press <strong>Ctrl+Q</strong> to quit the kiosk app (when unlocked)</p>
+        <p>• Press <strong>Ctrl+R</strong> to reload the kiosk screen without ending the session</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
