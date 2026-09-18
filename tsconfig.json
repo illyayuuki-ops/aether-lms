@@ -1,0 +1,26 @@
+{
+  "references": [
+    {
+      "path": "lib/api-zod"
+    },
+    {
+      "path": "lib/api-client-react"
+    },
+    {
+      "path": "lib/db"
+    },
+    {
+      "path": "artifacts/api-server"
+    },
+    {
+      "path": "artifacts/library-system"
+    },
+    {
+      "path": "artifacts/kiosk-electron"
+    },
+    {
+      "path": "scripts"
+    }
+  ],
+  "files": []
+}

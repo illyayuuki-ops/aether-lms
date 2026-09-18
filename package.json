@@ -22,9 +22,6 @@
   "devDependencies": {
     "typescript": "~5.9.2",
     "prettier": "^3.8.1",
-    "@rollup/rollup-win32-x64-msvc": "4.59.0",
-    "@tailwindcss/oxide-win32-x64-msvc": "^4.2.2",
-    "lightningcss-win32-x64-msvc": "^1.32.0",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0"
   }

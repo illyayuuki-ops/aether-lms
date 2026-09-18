@@ -16,7 +16,7 @@ export interface SessionResponse {
   computerNumber: number;
   researchTopic?: string | null;
   loginTime: string;
-  timeLimitMinutes: number;
+  sessionTimeLimitMinutes: number;
   inactivityLimitMinutes: number;
   sessionToken: string;
   mustChangePassword?: boolean;
@@ -156,7 +156,7 @@ export function useKioskSession() {
 
     const loginTimeMs       = new Date(session.loginTime).getTime();
     const inactivityLimitMs = (session.inactivityLimitMinutes ?? 10) * 60 * 1000;
-    const sessionTimeLimitMs = (session.timeLimitMinutes ?? 60) * 60 * 1000;
+    const sessionTimeLimitMs = (session.sessionTimeLimitMinutes ?? 60) * 60 * 1000;
     const warningMs         = inactivityLimitMs - DEFAULT_WARNING_BEFORE_MS;
 
     lastActivityRef.current  = Date.now();
@@ -175,7 +175,7 @@ export function useKioskSession() {
 
       setElapsedSeconds(elapsed);
 
-      if (elapsed >= sessionTimeLimitMs && !isLoggingOutRef.current) {
+      if ((now - loginTimeMs) >= sessionTimeLimitMs && !isLoggingOutRef.current) {
         clearInterval(interval);
         handleLogout("time_limit");
         return;

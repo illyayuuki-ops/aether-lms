@@ -1,4 +1,4 @@
-# Aether LMS — Create database tables in PostgreSQL
+# Aether LMS - Create database tables in PostgreSQL
 # Run this ONCE on the admin PC (where PostgreSQL lives)
 
 param(
@@ -13,7 +13,7 @@ if (-not $DatabaseUrl) {
 }
 
 Write-Host ""
-Write-Host "=== Aether LMS — Database Setup ===" -ForegroundColor Cyan
+Write-Host "=== Aether LMS - Database Setup ===" -ForegroundColor Cyan
 Write-Host ""
 
 # Step 1: Create the database (if it doesn't exist yet)
@@ -35,7 +35,7 @@ Write-Host ""
 Write-Host "Done! Tables are ready." -ForegroundColor Green
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Cyan
-Write-Host "  1. Run: pnpm run start:server   (starts the app on admin PC)"
+Write-Host "  1. Run: .\scripts\start-server.ps1   (starts the app on admin PC)"
 Write-Host "  2. Open browser: http://localhost:3000/admin/login"
 Write-Host "  3. Login: admin / admin123  (change password after first login)"
 Write-Host ""
