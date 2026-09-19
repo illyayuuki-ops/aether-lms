@@ -1,0 +1,1 @@
+{"version":3,"file":"loginRequest.d.ts","sourceRoot":"","sources":["../../../src/generated/types/loginRequest.ts"],"names":[],"mappings":"AAAA;;;;;;GAMG;AAEH,MAAM,WAAW,YAAY;IAC3B,SAAS,EAAE,MAAM,CAAC;IAClB,IAAI,EAAE,MAAM,CAAC;IACb,MAAM,EAAE,MAAM,CAAC;IACf,SAAS,EAAE,MAAM,CAAC;IAClB,cAAc,EAAE,MAAM,CAAC;IACvB,aAAa,CAAC,EAAE,MAAM,GAAG,IAAI,CAAC;CAC/B"}

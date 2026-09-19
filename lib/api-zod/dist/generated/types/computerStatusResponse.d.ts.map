@@ -1,0 +1,1 @@
+{"version":3,"file":"computerStatusResponse.d.ts","sourceRoot":"","sources":["../../../src/generated/types/computerStatusResponse.ts"],"names":[],"mappings":"AAAA;;;;;;GAMG;AACH,OAAO,KAAK,EAAE,cAAc,EAAE,MAAM,kBAAkB,CAAC;AAEvD,MAAM,WAAW,sBAAsB;IACrC,SAAS,EAAE,cAAc,EAAE,CAAC;IAC5B,cAAc,EAAE,MAAM,CAAC;IACvB,KAAK,EAAE,MAAM,CAAC;IACd,SAAS,EAAE,MAAM,CAAC;CACnB"}

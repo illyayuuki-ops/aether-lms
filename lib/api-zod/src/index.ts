@@ -1,2 +1,6 @@
 export * from "./generated/api";
-export * from "./generated/types";
+export type {
+  AdminLoginResponse as AdminLoginResponseType,
+  CreateAdminBody as CreateAdminBodyType,
+  UpdateAdminBody as UpdateAdminBodyType,
+} from "./generated/types";

@@ -287,7 +287,8 @@ router.post("/heartbeat", async (req, res) => {
       durationMinutes: Math.round((now.getTime() - session.loginTime.getTime()) / 60000),
       logoutReason: "time_limit",
     }).where(eq(sessionsTable.id, sessionId));
-    return res.json({ active: false, error: "time_limit" });
+    res.json({ active: false, error: "time_limit" });
+    return;
   }
 
   await db.update(sessionsTable).set({ lastActivity: new Date() })

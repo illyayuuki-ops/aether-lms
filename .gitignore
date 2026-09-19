@@ -1,4 +1,6 @@
 ﻿node_modules/
+*.tsbuildinfo
+scripts/dist/
 artifacts/api-server/dist/
 artifacts/library-system/dist/
 artifacts/kiosk-electron/release/
