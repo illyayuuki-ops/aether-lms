@@ -9,6 +9,29 @@ let badgeWindow = null;
 let isLocked = false;
 let isDesktopMode = false;
 
+// Disable hardware acceleration BEFORE app is ready if config says so
+let _earlyConfig = null;
+try {
+  const appData = process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming");
+  const earlyPaths = [
+    path.join(appData, "Aether LMS Kiosk", "config.json"),
+    path.join(__dirname, "..", "config.default.json"),
+    path.join(process.resourcesPath, "config.default.json"),
+  ];
+  for (const p of earlyPaths) {
+    if (fs.existsSync(p)) {
+      try {
+        const parsed = JSON.parse(fs.readFileSync(p, "utf8").replace(/^\uFEFF/, ""));
+        if (parsed.disableGpu || parsed.disableHardwareAcceleration) {
+          app.disableHardwareAcceleration();
+        }
+        _earlyConfig = parsed;
+        break;
+      } catch { }
+    }
+  }
+} catch { }
+
 // ─── Load config ─────────────────────────────────────────────────────────────
 function loadConfig() {
   const appData = process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming");
@@ -256,7 +279,22 @@ function createWindow() {
     mainWindow.focus();
   });
 
-  mainWindow.loadURL(serverUrl);
+  mainWindow.loadURL(serverUrl).catch((err) => {
+    console.error("[kiosk] Failed to load URL:", serverUrl, err);
+  });
+
+  mainWindow.webContents.on("did-fail-load", (_e, code, desc, url) => {
+    console.error("[kiosk] did-fail-load", { code, desc, url });
+  });
+
+  mainWindow.webContents.on("render-process-gone", (_e, details) => {
+    console.error("[kiosk] render-process-gone", details);
+  });
+
+  mainWindow.webContents.on("preload-error", (_e, preloadPath, err) => {
+    console.error("[kiosk] preload-error", preloadPath, err);
+  });
+
   mainWindow.on("close", (e) => { if (isLocked) e.preventDefault(); });
 
   // Restored from the taskbar while in desktop mode — leave desktop mode
