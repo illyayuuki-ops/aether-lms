@@ -7,6 +7,7 @@ const os = require("node:os");
 let mainWindow = null;
 let badgeWindow = null;
 let isLocked = false;
+let isSessionActive = false;
 let isDesktopMode = false;
 
 // Disable hardware acceleration BEFORE app is ready if config says so
@@ -56,12 +57,29 @@ function loadConfig() {
   return { serverUrl: "http://localhost:3000", autoLaunch: true };
 }
 
-// ─── Lock / Unlock ────────────────────────────────────────────────────────────
-function lock() {
+// ─── Global-shortcut lockdown helpers ──────────────────────────────────────────
+// Block Alt+F4, Super, Super+D/L/R/Tab, Ctrl+Escape so students can't escape
+// to the desktop while the session is locked or active.
+const LOCKDOWN_SHORTCUTS = ["Alt+F4", "Super", "Super+D", "Super+L", "Super+R", "Super+Tab", "Ctrl+Escape"];
+
+function registerShortcuts() {
+  for (const a of LOCKDOWN_SHORTCUTS) {
+    try { globalShortcut.register(a, () => {}); } catch { }
+  }
+}
+
+function unregisterShortcuts() {
+  for (const a of LOCKDOWN_SHORTCUTS) {
+    try { globalShortcut.unregister(a); } catch { }
+  }
+}
+
+// ─── Lock / Session-active / Unlock ────────────────────────────────────────────
+// lock()            — full kiosk lockdown (server-initiated or set-locked true)
+// sessionActive()   — same chrome as lock(), but session is still running
+// unlock()          — release everything
+function applyKioskChrome() {
   if (!mainWindow) return;
-  isLocked = true;
-  isDesktopMode = false;
-  closeBadge();
   mainWindow.setTitle("Aether LMS Kiosk");
   mainWindow.setFullScreen(true);
   mainWindow.setAlwaysOnTop(true, "screen-saver");
@@ -70,17 +88,32 @@ function lock() {
   mainWindow.setMinimizable(true);
   mainWindow.show();
   mainWindow.focus();
-  for (const a of ["Alt+F4", "Super", "Super+D", "Super+L", "Super+R", "Super+Tab", "Ctrl+Escape"]) {
-    try { globalShortcut.register(a, () => {}); } catch { }
-  }
+  registerShortcuts();
+}
+
+function lock() {
+  if (!mainWindow) return;
+  isLocked = true;
+  isSessionActive = false;
+  isDesktopMode = false;
+  closeBadge();
+  applyKioskChrome();
+}
+
+function sessionActive() {
+  if (!mainWindow) return;
+  isSessionActive = true;
+  isLocked = false;
+  isDesktopMode = false;
+  closeBadge();
+  applyKioskChrome();
 }
 
 function unlock() {
   if (!mainWindow) return;
   isLocked = false;
-  for (const a of ["Alt+F4", "Super", "Super+D", "Super+L", "Super+R", "Super+Tab", "Ctrl+Escape"]) {
-    try { globalShortcut.unregister(a); } catch { }
-  }
+  isSessionActive = false;
+  unregisterShortcuts();
   mainWindow.setFullScreen(false);
   mainWindow.setAlwaysOnTop(false);
   mainWindow.setClosable(true);
@@ -176,6 +209,7 @@ function createBadge(sessionInfo) {
 function enterDesktopMode(sessionInfo) {
   if (!mainWindow || isDesktopMode) return;
   isDesktopMode = true;
+  unregisterShortcuts();
   mainWindow.setTitle("Aether LMS Kiosk");
   mainWindow.setAlwaysOnTop(false);
   mainWindow.setFullScreen(false);
@@ -191,6 +225,7 @@ function exitDesktopMode() {
     mainWindow.restore();
     mainWindow.show();
     mainWindow.focus();
+    if (isLocked || isSessionActive) registerShortcuts();
     if (isLocked) lock();
     mainWindow.webContents.send("kiosk:desktop-mode-changed", false);
   }
@@ -215,6 +250,7 @@ function connectToServerEvents(serverUrl) {
               const data = JSON.parse(line.slice(6));
               if (data.type === "lock") lock();
               else if (data.type === "unlock") unlock();
+              else if (data.type === "session") sessionActive();
             } catch { }
           }
         }
@@ -251,7 +287,7 @@ function createWindow() {
   });
 
   mainWindow.webContents.on("before-input-event", (event, input) => {
-    if (!isLocked) return;
+    if (!isLocked && !isSessionActive) return;
     const key = input.key?.toLowerCase();
     if (key === "f12" ||
       (input.control && input.shift && key === "i") ||
@@ -261,7 +297,7 @@ function createWindow() {
     }
   });
 
-  mainWindow.webContents.on("context-menu", (e) => { if (isLocked) e.preventDefault(); });
+  mainWindow.webContents.on("context-menu", (e) => { if (isLocked || isSessionActive) e.preventDefault(); });
   mainWindow.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: "deny" }; });
 
   mainWindow.webContents.on("did-fail-load", (_e, code) => {
@@ -295,7 +331,7 @@ function createWindow() {
     console.error("[kiosk] preload-error", preloadPath, err);
   });
 
-  mainWindow.on("close", (e) => { if (isLocked) e.preventDefault(); });
+  mainWindow.on("close", (e) => { if (isLocked || isSessionActive) e.preventDefault(); });
 
   // Restored from the taskbar while in desktop mode — leave desktop mode
   mainWindow.on("restore", () => {
@@ -307,7 +343,16 @@ function createWindow() {
 
 ipcMain.on("kiosk:lock", () => lock());
 ipcMain.on("kiosk:unlock", () => unlock());
-ipcMain.on("kiosk:set-locked", (_e, locked) => { if (locked) lock(); else unlock(); });
+ipcMain.on("kiosk:session-active", () => sessionActive());
+// Backwards-compatible: accepts boolean true/false (old API) or
+// string "locked" | "session" | "unlocked" (new API).
+ipcMain.on("kiosk:set-locked", (_e, locked) => {
+  if (locked === "session") sessionActive();
+  else if (locked === "locked" || locked === true) lock();
+  else if (locked === "unlocked" || locked === false) unlock();
+  else if (locked) lock(); // unknown truthy -> lock
+  else unlock();
+});
 
 // System idle time (seconds) — used by kiosk to detect real OS-level inactivity
 ipcMain.handle("kiosk:get-system-idle-time", async () => {
@@ -366,6 +411,7 @@ app.whenReady().then(() => {
   });
   globalShortcut.register("Control+M", () => {
     isLocked = false;
+    isSessionActive = false;
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.setClosable(true);
       mainWindow.setFullScreen(false);
@@ -373,7 +419,7 @@ app.whenReady().then(() => {
     app.quit();
   });
   globalShortcut.register("Control+Q", () => {
-    if (!isLocked) app.quit();
+    if (!isLocked && !isSessionActive) app.quit();
   });
 
   app.on("activate", () => {

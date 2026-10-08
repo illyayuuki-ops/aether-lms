@@ -9,6 +9,7 @@ declare global {
   interface Window {
     aetherKiosk?: {
       isElectron: boolean;
+      sessionActive: () => void;
       setLocked: (locked: boolean) => void;
       setDesktopMode: (enabled: boolean, session?: KioskSessionInfo) => void;
       onEndSession?: (cb: () => void) => () => void;
@@ -24,6 +25,11 @@ export function isElectronKiosk(): boolean {
 
 export function setKioskLocked(locked: boolean): void {
   window.aetherKiosk?.setLocked(locked);
+}
+
+/** Put the kiosk into "session active" chrome (fullscreen, always-on-top, no escape). */
+export function setKioskSessionActive(): void {
+  window.aetherKiosk?.sessionActive?.();
 }
 
 export function setKioskDesktopMode(enabled: boolean, session?: KioskSessionInfo): void {

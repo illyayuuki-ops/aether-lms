@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useToast } from "@/components/ui/use-toast";
-import { setKioskLocked, isElectronKiosk, getSystemIdleSeconds } from "@/lib/electron-kiosk";
+import { setKioskLocked, setKioskSessionActive, isElectronKiosk, getSystemIdleSeconds } from "@/lib/electron-kiosk";
 
 const SESSION_STORAGE_KEY = "kiosk_active_session";
 
@@ -50,8 +50,10 @@ export function useKioskSession() {
 
   useEffect(() => {
     sessionRef.current = session;
-    // Tell Electron shell: locked = login screen, unlocked = student is logged in
-    setKioskLocked(!session);
+    // Tell Electron shell: no session = login screen (locked),
+    // session running = session-active kiosk chrome (fullscreen, no escape).
+    if (session) setKioskSessionActive();
+    else setKioskLocked(true);
   }, [session]);
 
   // ── Activity tracking ─────────────────────────────────────────────────────

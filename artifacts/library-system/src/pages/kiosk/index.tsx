@@ -762,27 +762,27 @@ function ActiveSessionView({ session, elapsedSeconds, isWarning, onLogout, isLog
     return (
       <div className="fixed inset-0 z-50 pointer-events-none">
         {/* Inactivity warning still shows even in desktop mode */}
-        {isWarning && (
-          <div className="absolute top-0 left-0 w-full bg-warning text-warning-foreground py-3 px-4 flex items-center justify-center gap-3 font-semibold shadow-md pointer-events-auto">
-            <AlertTriangle className="w-5 h-5" />
-            Warning: You will be logged out in 1 minute due to inactivity. Please move your mouse.
-          </div>
-        )}
+{isWarning && (
+           <div className="absolute top-0 left-0 w-full bg-warning text-warning-foreground py-3 px-4 flex items-center justify-center gap-3 font-bold text-base shadow-md pointer-events-auto">
+             <AlertTriangle className="w-5 h-5" />
+             Warning: You will be logged out in 1 minute due to inactivity. Please move your mouse.
+           </div>
+         )}
 
         {/* Floating session badge — bottom right corner */}
         <div className="absolute bottom-6 right-6 pointer-events-auto">
           <div className="bg-primary/95 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl p-4 flex items-center gap-4 min-w-[280px]">
             {/* Session info */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-0.5">
-                <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0" />
-                <p className="text-white text-xs font-semibold truncate">{session.name}</p>
-              </div>
-              <p className="text-white/50 text-xs">
-                PC {session.computerNumber.toString().padStart(2, "0")} •{" "}
-                <span className="font-mono text-accent">{formatTime(elapsedSeconds)}</span>
-              </p>
-            </div>
+<div className="flex-1 min-w-0">
+               <div className="flex items-center gap-2 mb-0.5">
+                 <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0" />
+                 <p className="text-white text-xs font-semibold truncate">{session.name}</p>
+               </div>
+               <p className="text-white/80 font-semibold text-xs">
+                 PC {session.computerNumber.toString().padStart(2, "0")} •{" "}
+                 <span className="font-mono text-accent">{formatTime(elapsedSeconds)}</span>
+               </p>
+             </div>
 
             {/* Return to session button */}
             <Button
@@ -806,7 +806,7 @@ function ActiveSessionView({ session, elapsedSeconds, isWarning, onLogout, isLog
       <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-primary/5 rounded-full blur-[120px]" />
 
       {isWarning && (
-        <div className="absolute top-0 left-0 w-full bg-warning text-warning-foreground py-3 px-4 flex items-center justify-center gap-3 font-semibold shadow-md z-50 animate-in slide-in-from-top">
+        <div className="absolute top-0 left-0 w-full bg-warning text-warning-foreground py-3 px-4 flex items-center justify-center gap-3 font-bold text-base shadow-md z-50 animate-in slide-in-from-top">
           <AlertTriangle className="w-5 h-5" />
           Warning: You will be logged out in 1 minute due to inactivity. Please move your mouse.
         </div>
@@ -819,12 +819,12 @@ function ActiveSessionView({ session, elapsedSeconds, isWarning, onLogout, isLog
               <Monitor className="w-8 h-8 text-white" />
             </div>
             <div>
-              <h2 className="text-sm font-medium text-white/60 tracking-wider uppercase mb-1">L-CMS — Active Session</h2>
+              <h2 className="text-sm font-semibold text-white/80 tracking-wider uppercase mb-1">L-CMS — Active Session</h2>
               <p className="text-3xl font-display font-bold">PC — {session.computerNumber.toString().padStart(2, "0")}</p>
             </div>
           </div>
           <div className="text-center md:text-right">
-            <p className="text-sm text-white/60 mb-1">Current Time</p>
+            <p className="text-sm font-semibold text-white/80 mb-1">Current Time</p>
             <p className="text-2xl font-mono">{currentTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</p>
             <p className="text-xs text-white/40 mt-1">{formattedDate}</p>
           </div>
@@ -832,33 +832,33 @@ function ActiveSessionView({ session, elapsedSeconds, isWarning, onLogout, isLog
 
         <div className="p-8 md:p-12 flex flex-col md:flex-row gap-12">
           <div className="flex-1 space-y-5">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground mb-1">Student</p>
-              <p className="text-2xl font-semibold text-foreground">{session.name}</p>
-              <p className="text-muted-foreground">{session.studentId} • {session.degree} Year {session.yearLevel}</p>
-            </div>
-            <div className="pt-4 border-t border-border">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-secondary/50 p-4 rounded-xl">
-                  <p className="text-xs text-muted-foreground">Started At</p>
-                  <p className="font-semibold">{new Date(session.loginTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
-                </div>
-                <div className="bg-secondary/50 p-4 rounded-xl">
-                  <p className="text-xs text-muted-foreground">Auto-logout After</p>
-                  <p className="font-semibold">{session.inactivityLimitMinutes ?? 10} min idle</p>
-                </div>
-              </div>
-            </div>
+<div>
+               <p className="text-sm font-semibold text-foreground mb-1">Student</p>
+               <p className="text-2xl font-semibold text-foreground">{session.name}</p>
+               <p className="text-foreground">{session.studentId} • {session.degree} Year {session.yearLevel}</p>
+             </div>
+             <div className="pt-4 border-t border-border">
+               <div className="grid grid-cols-2 gap-4">
+                 <div className="bg-secondary/50 p-4 rounded-xl">
+                   <p className="text-xs font-semibold text-foreground">Started At</p>
+                   <p className="font-semibold">{new Date(session.loginTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+                 </div>
+                 <div className="bg-secondary/50 p-4 rounded-xl">
+                   <p className="text-xs font-semibold text-foreground">Auto-logout After</p>
+                   <p className="font-semibold">{session.inactivityLimitMinutes ?? 10} min idle</p>
+                 </div>
+               </div>
+             </div>
 
             {/* ── Go to Desktop button ── */}
             <div className="pt-2">
               <button
                 onClick={() => setIsDesktopMode(true)}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/60 transition-all text-sm font-medium text-muted-foreground hover:text-foreground"
+                className="w-full flex items-center justify-center gap-2 px-4 py-4 rounded-xl bg-accent hover:bg-accent/90 transition-all text-base font-bold text-white shadow-[0_0_20px_rgba(37,99,235,0.35)]"
               >
-                <LayoutDashboard className="w-4 h-4" />
+                <LayoutDashboard className="w-5 h-5" />
                 Go to Desktop
-                <span className="text-xs text-muted-foreground/60 ml-1">(session stays active)</span>
+                <span className="text-xs font-medium text-white/80 ml-1">— click here to use this computer</span>
               </button>
             </div>
           </div>
@@ -876,11 +876,11 @@ function ActiveSessionView({ session, elapsedSeconds, isWarning, onLogout, isLog
                 />
               </svg>
               <div className="text-center z-10 flex flex-col items-center">
-                <Clock className="w-6 h-6 mb-2 text-muted-foreground" />
+                <Clock className="w-6 h-6 mb-2 text-foreground" />
                 <span className="text-4xl font-display font-bold font-mono tracking-tighter text-foreground">
                   {formatTime(elapsedSeconds)}
                 </span>
-                <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground mt-1">Elapsed</span>
+                <span className="text-xs font-semibold uppercase tracking-wider text-foreground mt-1">Elapsed</span>
               </div>
             </div>
             <Button
