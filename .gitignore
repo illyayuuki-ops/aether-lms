@@ -9,3 +9,7 @@ artifacts/kiosk-electron/node_modules/
 .env
 *.log
 artifacts/api-server/.env
+
+system-settings.json
+*.blockmap
+build-log.txt
