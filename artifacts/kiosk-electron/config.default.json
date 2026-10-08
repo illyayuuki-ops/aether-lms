@@ -1,6 +1,6 @@
 {
-  "serverUrl": "http://localhost:3000",
+  "serverUrl": "http://172.16.50.47:3000",
   "emergencyPin": "260306",
   "autoLaunch": true,
-  "comment": "Change serverUrl to your ADMIN PC's IP address on the school network for student PCs. Set autoLaunch to false to disable auto-start on Windows login."
+  "comment": "Change serverUrl to your ADMIN PC's IP address on the school network for student PCs. Set autoLaunch to false to disable auto-start on Windows login. On the admin PC itself localhost also works, but the LAN IP is equally correct, so this single value is safe everywhere."
 }

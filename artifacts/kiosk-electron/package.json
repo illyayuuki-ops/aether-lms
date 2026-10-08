@@ -45,7 +45,8 @@
       "createStartMenuShortcut": true,
       "shortcutName": "Aether LMS Kiosk",
       "uninstallDisplayName": "Aether LMS Kiosk",
-      "deleteAppDataOnUninstall": true
+      "deleteAppDataOnUninstall": true,
+      "include": "installer.nsh"
     }
   },
   "devDependencies": {
