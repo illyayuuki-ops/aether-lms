@@ -241,14 +241,17 @@ export default function AdminSessions() {
 
   const { data, isLoading, refetch } = useGetAllSessions({
     page, limit: 50,
+    // Filter server-side — the API now supports isActive/yearLevel so the
+    // 50-row page isn't pre-filtered client-side (which made history look
+    // like it only contained the latest sessions).
+    ...(isHistoryPage ? { isActive: false } : { isActive: true }),
     ...(degreeFilter ? { gradeLevel: degreeFilter } : {}),
+    ...(yearFilter ? { yearLevel: yearFilter } : {}),
     ...(dateFilter ? { startDate: dateFilter, endDate: dateFilter } : {}),
   });
 
   const sessions = useMemo(() => {
-    let list = data?.sessions ?? [];
-    list = isHistoryPage ? list.filter((s) => !s.isActive) : list.filter((s) => s.isActive);
-    if (yearFilter) list = list.filter((s) => (s as any).yearLevel === yearFilter);
+    const list = data?.sessions ?? [];
     return [...list].sort((a, b) => {
       let aVal: any, bVal: any;
       switch (sortField) {
@@ -267,7 +270,7 @@ export default function AdminSessions() {
       if (aVal > bVal) return sortDir === "asc" ? 1 : -1;
       return 0;
     });
-  }, [data, isHistoryPage, yearFilter, sortField, sortDir]);
+  }, [data, sortField, sortDir]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) setSortDir((d) => d === "asc" ? "desc" : "asc");

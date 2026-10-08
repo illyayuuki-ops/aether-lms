@@ -39,6 +39,10 @@ export function useKioskSession() {
   const sessionRef       = useRef<SessionResponse | null>(session);
   const lastActivityRef  = useRef<number>(Date.now());
   const lastHeartbeatRef = useRef<number>(Date.now());
+  // Set when real input is detected — sent as `active: true` with the
+  // next heartbeat so the server only refreshes lastActivity for genuine
+  // activity (makes server-side staleness meaningful).
+  const activityPendingRef = useRef(false);
   const isWarningRef     = useRef(false);
   const isLoggingOutRef  = useRef(false);
 
@@ -56,6 +60,7 @@ export function useKioskSession() {
 
     const updateActivity = () => {
       lastActivityRef.current = Date.now();
+      activityPendingRef.current = true;
       if (isWarningRef.current) {
         isWarningRef.current = false;
         setIsWarning(false);
@@ -189,6 +194,7 @@ export function useKioskSession() {
           // If system has been active more recently than our lastActivityRef, treat as activity
           if (systemIdleMs < inactiveMs) {
             lastActivityRef.current = now;
+            activityPendingRef.current = true;
           }
         } catch {
           // Fallback to window listeners if IPC fails
@@ -211,14 +217,18 @@ export function useKioskSession() {
         setIsWarning(false);
       }
 
-      // Heartbeat — check if session was force-ended by admin
+      // Heartbeat — check if session was force-ended by admin.
+      // Only report `active: true` when input was detected since the
+      // last heartbeat, so the server-side inactivity timer is real.
       if (now - lastHeartbeatRef.current >= HEARTBEAT_INTERVAL_MS && sessionRef.current) {
         lastHeartbeatRef.current = now;
+        const wasActive = activityPendingRef.current;
+        activityPendingRef.current = false;
 
         fetch("/api/sessions/heartbeat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId: sessionRef.current.sessionId }),
+          body: JSON.stringify({ sessionId: sessionRef.current.sessionId, active: wasActive }),
         })
           .then((r) => r.json())
           .then((data) => {

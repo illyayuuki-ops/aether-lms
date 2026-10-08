@@ -132,7 +132,7 @@ router.get("/sessions", requireAdmin, async (req, res) => {
     return;
   }
 
-  const { startDate, endDate, gradeLevel, computerNumber, page, limit } = parsed.data;
+  const { startDate, endDate, gradeLevel, computerNumber, isActive, yearLevel, page, limit } = parsed.data;
   const pageNum  = page  ?? 1;
   const limitNum = limit ?? 50;
   const conditions = [];
@@ -144,7 +144,9 @@ router.get("/sessions", requireAdmin, async (req, res) => {
     conditions.push(lte(sessionsTable.loginTime, end));
   }
   if (gradeLevel)     conditions.push(eq(sessionsTable.degree, gradeLevel));
+  if (yearLevel)      conditions.push(eq(sessionsTable.yearLevel, yearLevel));
   if (computerNumber) conditions.push(eq(sessionsTable.computerNumber, Number(computerNumber)));
+  if (isActive !== undefined) conditions.push(eq(sessionsTable.isActive, isActive));
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -298,7 +300,21 @@ router.get("/computers", requireAdmin, async (_req, res) => {
 
 // ─── System Settings — persisted to disk ─────────────────────────────────────
 
-const SETTINGS_FILE = path.join(process.cwd(), "system-settings.json");
+// Anchor the settings file next to the server install (artifacts/api-server/),
+// not the process CWD — CWD depends on how/where the scheduled task starts us.
+const SETTINGS_FILE = path.join(__dirname, "../../system-settings.json");
+const LEGACY_SETTINGS_FILE = path.join(process.cwd(), "system-settings.json");
+
+// One-time migration: if the new location is missing but the old
+// CWD-anchored file exists, copy it over so existing settings aren't lost.
+function migrateSettingsFile() {
+  try {
+    if (!fs.existsSync(SETTINGS_FILE) && fs.existsSync(LEGACY_SETTINGS_FILE)) {
+      fs.copyFileSync(LEGACY_SETTINGS_FILE, SETTINGS_FILE);
+    }
+  } catch { /* non-critical — defaults will be used */ }
+}
+migrateSettingsFile();
 
 const DEFAULT_SYSTEM_SETTINGS = {
   inactivityLimitMinutes: 10,

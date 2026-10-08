@@ -138,6 +138,38 @@ function formatStudentId(raw: string): string {
   return `${digits.slice(0, 2)}-${digits.slice(2)}`;
 }
 
+// RFC 4180-style CSV field parser — respects double-quoted fields so
+// names like "DELA CRUZ, JUAN" survive a naive split(",").
+function parseCsvLine(line: string): string[] {
+  const fields: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        current += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ",") {
+      fields.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  fields.push(current);
+  return fields;
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface StudentForm {
@@ -229,7 +261,9 @@ function ImportModal({ onClose, onImported, courses, onRemovedStudentsFound }: {
 
   const checkExisting = async (parsed: Omit<ImportRow, "status">[]) => {
     try {
-      const resp = await fetch("/api/admin/students?limit=9999", { headers: authHeaders as any });
+      // Lightweight id/studentId pairs — the list endpoint clamps
+      // limit to 100, which silently missed duplicates past #100.
+      const resp = await fetch("/api/admin/students/ids", { headers: authHeaders as any });
       const data = resp.ok ? await resp.json() : { students: [] };
       const existingMap = new Map((data.students ?? []).map((s: any) => [s.studentId, s]));
       const newIds = new Set(parsed.map(r => r.studentId));
@@ -258,10 +292,10 @@ function ImportModal({ onClose, onImported, courses, onRemovedStudentsFound }: {
       const ext = file.name.split(".").pop()?.toLowerCase();
       let parsed: Omit<ImportRow, "status">[] = [];
       if (ext === "csv") {
-        const lines = (await file.text()).split("\n").filter(Boolean);
+        const lines = (await file.text()).split(/\r?\n/).filter(Boolean);
         const si = lines[0].toLowerCase().includes("student") ? 1 : 0;
         parsed = lines.slice(si).map((line) => {
-          const cols = line.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+          const cols = parseCsvLine(line).map((c) => c.trim());
           return { studentId: cols[0]??"", name: cols[1]??"", degree: cols[2]??"", major: cols[3]??"", yearLevel: cols[4]??"1" };
         });
       } else if (ext === "xlsx" || ext === "xls") {

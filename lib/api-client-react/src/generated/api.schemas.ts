@@ -234,7 +234,9 @@ export type GetAllSessionsParams = {
   startDate?: string;
   endDate?: string;
   gradeLevel?: string;
+  yearLevel?: string;
   computerNumber?: number;
+  isActive?: boolean;
   page?: number;
   limit?: number;
 };

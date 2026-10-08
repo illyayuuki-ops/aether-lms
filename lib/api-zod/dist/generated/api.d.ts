@@ -233,17 +233,23 @@ export declare const GetAllSessionsQueryParams: zod.ZodObject<{
     startDate: zod.ZodOptional<zod.ZodDate>;
     endDate: zod.ZodOptional<zod.ZodDate>;
     gradeLevel: zod.ZodOptional<zod.ZodString>;
+    yearLevel: zod.ZodOptional<zod.ZodString>;
     computerNumber: zod.ZodOptional<zod.ZodNumber>;
+    isActive: zod.ZodEffects<zod.ZodOptional<zod.ZodBoolean>, boolean | undefined, unknown>;
     page: zod.ZodDefault<zod.ZodNumber>;
     limit: zod.ZodDefault<zod.ZodNumber>;
 }, "strip", zod.ZodTypeAny, {
     page: number;
     limit: number;
+    yearLevel?: string | undefined;
+    isActive?: boolean | undefined;
     computerNumber?: number | undefined;
     startDate?: Date | undefined;
     endDate?: Date | undefined;
     gradeLevel?: string | undefined;
 }, {
+    yearLevel?: string | undefined;
+    isActive?: unknown;
     computerNumber?: number | undefined;
     startDate?: Date | undefined;
     endDate?: Date | undefined;

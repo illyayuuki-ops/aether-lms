@@ -119,7 +119,14 @@ export const GetAllSessionsQueryParams = zod.object({
   startDate: zod.date().optional(),
   endDate: zod.date().optional(),
   gradeLevel: zod.coerce.string().optional(),
+  yearLevel: zod.coerce.string().optional(),
   computerNumber: zod.coerce.number().optional(),
+  // Query strings arrive as "true"/"false" — zod.coerce.boolean() would
+  // turn "false" into true, so normalize explicitly first.
+  isActive: zod.preprocess(
+    (v) => (v === "true" ? true : v === "false" ? false : v),
+    zod.boolean().optional()
+  ),
   page: zod.coerce.number().default(getAllSessionsQueryPageDefault),
   limit: zod.coerce.number().default(getAllSessionsQueryLimitDefault),
 });

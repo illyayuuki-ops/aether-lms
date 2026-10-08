@@ -2,6 +2,7 @@
 *.tsbuildinfo
 scripts/dist/
 artifacts/api-server/dist/
+artifacts/api-server/system-settings.json
 artifacts/library-system/dist/
 artifacts/kiosk-electron/release/
 artifacts/kiosk-electron/node_modules/

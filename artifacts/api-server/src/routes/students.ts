@@ -24,6 +24,23 @@ const ResetPasswordSchema = z.object({
   mustChangePassword: z.boolean().optional().default(false),
 });
 
+// ── GET /ids (all id/studentId pairs — lightweight, no pagination cap) ──
+// Used by the admin import flow to check existing Student IDs without
+// pulling the full student list (?limit=9999 was clamped to 100 server-side).
+
+router.get("/ids", async (_req, res) => {
+  const students = await db
+    .select({
+      id:        studentsTable.id,
+      studentId: studentsTable.studentId,
+      name:      studentsTable.name,
+    })
+    .from(studentsTable)
+    .orderBy(sql`${studentsTable.name} ASC`);
+
+  res.json({ students });
+});
+
 // ── GET /  (list with search/filter/pagination) ────────────────────────────
 
 router.get("/", async (req, res) => {
@@ -40,15 +57,12 @@ router.get("/", async (req, res) => {
 
   const conditions = [];
 
-  // ── FIX: Use ILIKE (partial, case-insensitive) for degree + yearLevel ──
-  // This handles mismatches between old stored values (e.g. "1", "BSIT")
-  // and new settings-driven values (e.g. "1st Year", "BS Information Technology").
-  // A student stored as degree="BSIT" will still match a filter of "BSIT".
-  // A student stored as yearLevel="1" will still match a filter of "1st Year"
-  // because "1" is contained in "1st Year" ... actually we flip it:
-  // we check if the stored value contains the filter OR filter contains stored value.
-  // Simplest safe fix: match if stored value ILIKE %filter% OR filter ILIKE %stored%
-  // For exact new data, both directions work. For old short values, one direction catches it.
+  // ── Filters ──────────────────────────────────────────────────────
+  // Degree: fuzzy ILIKE both directions to handle mismatches between old
+  // stored values (e.g. "BSIT") and new settings-driven values.
+  // Year level: EXACT match only — bidirectional ILIKE made "1" match
+  // "10"/"11"/"12". Stored values are plain strings ("1".."12") and the
+  // admin UI sends exact dropdown values.
 
   if (degree) {
     conditions.push(
@@ -57,9 +71,7 @@ router.get("/", async (req, res) => {
   }
 
   if (yearLevel) {
-    conditions.push(
-      sql`(${studentsTable.yearLevel} ILIKE ${"%" + yearLevel + "%"} OR ${yearLevel} ILIKE CONCAT('%', ${studentsTable.yearLevel}, '%'))`
-    );
+    conditions.push(eq(studentsTable.yearLevel, yearLevel));
   }
 
   if (search) {

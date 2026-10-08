@@ -104,7 +104,7 @@ router.post("/register", async (req, res) => {
     name:               parsed.data.name,
     degree:             parsed.data.degree,
     yearLevel:          parsed.data.yearLevel,
-    password:           parsed.data.password,
+    password:           await bcrypt.hash(parsed.data.password, 10),
     mustChangePassword: false,
     isActive:           true,
   });
@@ -292,7 +292,7 @@ router.post("/logout", async (req, res) => {
 // ─── Heartbeat (keeps session alive) ─────────────────────────────────────────
 
 router.post("/heartbeat", async (req, res) => {
-  const { sessionId } = req.body ?? {};
+  const { sessionId, active } = req.body ?? {};
   if (!sessionId) { res.status(400).json({ error: "missing" }); return; }
 
   const [session] = await db
@@ -322,8 +322,12 @@ router.post("/heartbeat", async (req, res) => {
     return;
   }
 
-  await db.update(sessionsTable).set({ lastActivity: new Date() })
-    .where(and(eq(sessionsTable.id, sessionId), eq(sessionsTable.isActive, true)));
+  // Only refresh lastActivity when the client reports real input activity,
+  // so server-side staleness (ghost sweeper / stale-login recovery) is meaningful.
+  if (active === true) {
+    await db.update(sessionsTable).set({ lastActivity: new Date() })
+      .where(and(eq(sessionsTable.id, sessionId), eq(sessionsTable.isActive, true)));
+  }
 
   res.json({
     success: true,
