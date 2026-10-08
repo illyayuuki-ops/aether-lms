@@ -483,7 +483,8 @@ router.post("/auth/reset-password", async (req, res) => {
     res.status(401).json({ error: "invalid", message: "Username or secret code is incorrect." });
     return;
   }
-  await db.update(adminsTable).set({ password: newPassword } as any).where(eq(adminsTable.id, admin.id));
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  await db.update(adminsTable).set({ password: hashedPassword }).where(eq(adminsTable.id, admin.id));
   res.json({ success: true, message: "Password reset successfully." });
 });
 
@@ -518,8 +519,9 @@ router.post("/auth/first-setup", async (req, res) => {
     return;
   }
 
+  const hashedPassword = await bcrypt.hash(password, 10);
   await db.insert(adminsTable).values({
-    username, password, role: "super_admin", isActive: true,
+    username, password: hashedPassword, role: "super_admin", isActive: true,
     ...(({ secretCode } as any)),
   } as any);
 
