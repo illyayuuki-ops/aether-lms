@@ -276,6 +276,7 @@ router.get("/analytics/daily", requireAdmin, async (req, res) => {
 // ─── Computers ──────────────────────────────────────────────────────────────
 
 router.get("/computers", requireAdmin, async (_req, res) => {
+  const settings = loadSettings();
   const activeSessions = await db.select().from(sessionsTable).where(eq(sessionsTable.isActive, true));
   const now = new Date();
 
@@ -285,17 +286,18 @@ router.get("/computers", requireAdmin, async (_req, res) => {
       degree: s.degree, yearLevel: s.yearLevel, computerNumber: s.computerNumber,
       researchTopic: s.researchTopic, loginTime: s.loginTime, lastActivity: s.lastActivity,
       elapsedMinutes: Math.round((now.getTime() - s.loginTime.getTime()) / 60000),
-      timeLimitMinutes: 60, inactivityLimitMinutes: 10,
+      timeLimitMinutes: settings.sessionTimeLimitMinutes, inactivityLimitMinutes: settings.inactivityLimitMinutes,
     }])
   );
 
-  const computers = Array.from({ length: TOTAL_COMPUTERS }, (_, i) => {
+  const computers = Array.from({ length: settings.totalComputers ?? TOTAL_COMPUTERS }, (_, i) => {
     const num = i + 1;
     const session = activeMap.get(num) ?? null;
     return { computerNumber: num, isInUse: !!session, currentSession: session };
   });
 
-  res.json({ computers, totalComputers: TOTAL_COMPUTERS, inUse: activeSessions.length, available: TOTAL_COMPUTERS - activeSessions.length });
+  const total = settings.totalComputers ?? TOTAL_COMPUTERS;
+  res.json({ computers, totalComputers: total, inUse: activeSessions.length, available: total - activeSessions.length });
 });
 
 // ─── System Settings — persisted to disk ─────────────────────────────────────
@@ -319,6 +321,7 @@ migrateSettingsFile();
 const DEFAULT_SYSTEM_SETTINGS = {
   inactivityLimitMinutes: 10,
   sessionTimeLimitMinutes: 60,
+  totalComputers: 20,
   courses: [
     "BEED", "BSA", "BSBA", "BSED", "BSHM", "BSIE", "BSIT", "BSMA", "BSP", "BSTM",
     "SHS", "STEM", "ABM", "HUMSS", "GAS",
@@ -353,6 +356,7 @@ router.put("/settings/system", requireAdmin, async (req, res) => {
   const SystemSettingsSchema = z.object({
     inactivityLimitMinutes: z.number().int().min(1).max(120).optional(),
     sessionTimeLimitMinutes: z.number().int().min(1).max(480).optional(),
+    totalComputers:         z.number().int().min(1).max(100).optional(),
     courses:    z.array(z.string().min(1)).min(1).optional(),
     yearLevels: z.array(z.string().min(1)).min(1).optional(),
   });

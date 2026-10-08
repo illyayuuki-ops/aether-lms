@@ -357,9 +357,10 @@ router.post("/change-password", async (req, res) => {
     return;
   }
 
+  const hashedPassword = await bcrypt.hash(parsed.data.newPassword, 10);
   await db
     .update(studentsTable)
-    .set({ password: parsed.data.newPassword, mustChangePassword: false, updatedAt: new Date() })
+    .set({ password: hashedPassword, mustChangePassword: false, updatedAt: new Date() })
     .where(eq(studentsTable.id, student.id));
 
   res.json({ success: true });

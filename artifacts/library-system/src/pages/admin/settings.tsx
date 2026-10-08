@@ -13,6 +13,7 @@ import {
 type SystemSettings = {
   inactivityLimitMinutes: number;
   sessionTimeLimitMinutes: number;
+  totalComputers: number;
   courses: string[];
   yearLevels: string[];
 };
@@ -431,6 +432,23 @@ export default function SettingsPage() {
                     type="number" min={1} max={480}
                     value={settings.sessionTimeLimitMinutes}
                     onChange={(e) => setSettings({ ...settings, sessionTimeLimitMinutes: Number(e.target.value) })}
+                    className={inputCls + " max-w-xs"}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground block">
+                    Total Computers
+                    <span className="text-muted-foreground font-normal ml-1">(kiosk PCs)</span>
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    Number of computers shown on the dashboard grid and validated against at login.
+                    Must match the number of physical kiosk PCs in the library.
+                  </p>
+                  <input
+                    type="number" min={1} max={100}
+                    value={settings.totalComputers}
+                    onChange={(e) => setSettings({ ...settings, totalComputers: Number(e.target.value) })}
                     className={inputCls + " max-w-xs"}
                   />
                 </div>

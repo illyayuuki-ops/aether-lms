@@ -95,9 +95,10 @@ export default function AdminDashboard() {
   };
 
   // ── PC count ──
+  const serverTotal = computers?.totalComputers;
   const [totalPCs, setTotalPCs] = useState<number>(() => {
     const saved = localStorage.getItem("dashboard_total_pcs");
-    return saved ? Number(saved) : 20;
+    return serverTotal ?? (saved ? Number(saved) : 20);
   });
   const [showPCSettings, setShowPCSettings] = useState(false);
   const [pcInput, setPcInput] = useState(totalPCs.toString());
@@ -110,6 +111,13 @@ export default function AdminDashboard() {
       setShowPCSettings(false);
     }
   };
+
+  useEffect(() => {
+    if (serverTotal) {
+      setTotalPCs(serverTotal);
+      localStorage.setItem("dashboard_total_pcs", serverTotal.toString());
+    }
+  }, [serverTotal]);
 
   useEffect(() => {
     fetchTopStudents();
