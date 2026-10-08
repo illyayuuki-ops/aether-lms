@@ -9,4 +9,6 @@ import type { GetStatsPeriod } from "./getStatsPeriod";
 
 export type GetStatsParams = {
   period?: GetStatsPeriod;
+  year?: number;
+  month?: number;
 };

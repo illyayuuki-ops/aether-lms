@@ -8,5 +8,7 @@
 import type { GetStatsPeriod } from "./getStatsPeriod";
 export type GetStatsParams = {
     period?: GetStatsPeriod;
+    year?: number;
+    month?: number;
 };
 //# sourceMappingURL=getStatsParams.d.ts.map

@@ -187,17 +187,34 @@ router.delete("/sessions/:id", requireAdmin, async (req, res) => {
 router.get("/stats", requireAdmin, async (req, res) => {
   const parsed = GetStatsQueryParams.safeParse(req.query);
   const period = parsed.success ? (parsed.data.period ?? "today") : "today";
+  const year = parsed.success ? parsed.data.year : undefined;
+  const month = parsed.success ? parsed.data.month : undefined;
 
   const now = new Date();
   let startDate: Date;
-  switch (period) {
-    case "week":  startDate = new Date(now); startDate.setDate(now.getDate() - 7); break;
-    case "month": startDate = new Date(now); startDate.setMonth(now.getMonth() - 1); break;
-    case "year":  startDate = new Date(now); startDate.setFullYear(now.getFullYear() - 1); break;
-    default:      startDate = new Date(now); startDate.setHours(0, 0, 0, 0);
+  let endDate: Date | undefined;
+
+  if (period === "all" || (year !== undefined && month !== undefined)) {
+    // Specific calendar month or all time
+    if (year !== undefined && month !== undefined) {
+      startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
+      endDate = new Date(year, month, 0, 23, 59, 59, 999); // Last day of month
+    } else {
+      // "all" - no date filter, include all sessions
+      startDate = new Date(0); // Unix epoch
+    }
+  } else {
+    switch (period) {
+      case "week":  startDate = new Date(now); startDate.setDate(now.getDate() - 7); break;
+      case "month": startDate = new Date(now); startDate.setMonth(now.getMonth() - 1); break;
+      case "year":  startDate = new Date(now); startDate.setFullYear(now.getFullYear() - 1); break;
+      default:      startDate = new Date(now); startDate.setHours(0, 0, 0, 0);
+    }
   }
 
-  const periodCondition = gte(sessionsTable.loginTime, startDate);
+  const conditions = [gte(sessionsTable.loginTime, startDate)];
+  if (endDate) conditions.push(lte(sessionsTable.loginTime, endDate));
+  const periodCondition = conditions.length > 1 ? and(...conditions) : conditions[0];
 
   const [totalResult]  = await db.select({ count: count() }).from(sessionsTable).where(periodCondition);
   const [activeResult] = await db.select({ count: count() }).from(sessionsTable).where(and(periodCondition, eq(sessionsTable.isActive, true)));

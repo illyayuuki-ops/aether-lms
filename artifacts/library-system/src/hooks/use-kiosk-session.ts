@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useToast } from "@/components/ui/use-toast";
-import { setKioskLocked } from "@/lib/electron-kiosk";
+import { setKioskLocked, isElectronKiosk, getSystemIdleSeconds } from "@/lib/electron-kiosk";
 
 const SESSION_STORAGE_KEY = "kiosk_active_session";
 
@@ -163,7 +163,7 @@ export function useKioskSession() {
     lastHeartbeatRef.current = Date.now();
     isLoggingOutRef.current  = false;
 
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       if (!sessionRef.current) {
         clearInterval(interval);
         return;
@@ -181,16 +181,32 @@ export function useKioskSession() {
         return;
       }
 
-      if (inactiveMs >= inactivityLimitMs && !isLoggingOutRef.current) {
+      // Check system idle time when running in Electron kiosk (desktop mode)
+      if (isElectronKiosk()) {
+        try {
+          const systemIdleSeconds = await getSystemIdleSeconds();
+          const systemIdleMs = systemIdleSeconds * 1000;
+          // If system has been active more recently than our lastActivityRef, treat as activity
+          if (systemIdleMs < inactiveMs) {
+            lastActivityRef.current = now;
+          }
+        } catch {
+          // Fallback to window listeners if IPC fails
+        }
+      }
+
+      const currentInactiveMs = now - lastActivityRef.current;
+
+      if (currentInactiveMs >= inactivityLimitMs && !isLoggingOutRef.current) {
         clearInterval(interval);
         handleLogout("inactivity");
         return;
       }
 
-      if (inactiveMs >= warningMs && !isWarningRef.current) {
+      if (currentInactiveMs >= warningMs && !isWarningRef.current) {
         isWarningRef.current = true;
         setIsWarning(true);
-      } else if (inactiveMs < warningMs && isWarningRef.current) {
+      } else if (currentInactiveMs < warningMs && isWarningRef.current) {
         isWarningRef.current = false;
         setIsWarning(false);
       }

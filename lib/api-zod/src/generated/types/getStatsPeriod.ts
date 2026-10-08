@@ -14,4 +14,5 @@ export const GetStatsPeriod = {
   week: "week",
   month: "month",
   year: "year",
+  all: "all",
 } as const;

@@ -153,8 +153,10 @@ export const getStatsQueryPeriodDefault = `today`;
 
 export const GetStatsQueryParams = zod.object({
   period: zod
-    .enum(["today", "week", "month", "year"])
+    .enum(["today", "week", "month", "year", "all"])
     .default(getStatsQueryPeriodDefault),
+  year: zod.coerce.number().int().min(2020).max(2100).optional(),
+  month: zod.coerce.number().int().min(1).max(12).optional(),
 });
 
 export const GetStatsResponse = zod.object({

@@ -11,5 +11,6 @@ export declare const GetStatsPeriod: {
     readonly week: "week";
     readonly month: "month";
     readonly year: "year";
+    readonly all: "all";
 };
 //# sourceMappingURL=getStatsPeriod.d.ts.map

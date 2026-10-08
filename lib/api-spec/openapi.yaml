@@ -216,8 +216,22 @@ paths:
           in: query
           schema:
             type: string
-            enum: [today, week, month, year]
+            enum: [today, week, month, year, all]
             default: today
+        - name: year
+          in: query
+          schema:
+            type: integer
+            minimum: 2020
+            maximum: 2100
+          description: Calendar year (requires month parameter)
+        - name: month
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+          description: Calendar month 1-12 (requires year parameter)
       responses:
         "200":
           description: Usage statistics

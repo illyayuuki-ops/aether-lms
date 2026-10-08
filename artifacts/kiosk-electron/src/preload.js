@@ -19,4 +19,5 @@ contextBridge.exposeInMainWorld("aetherKiosk", {
     ipcRenderer.on("kiosk:desktop-mode-changed", listener);
     return () => ipcRenderer.removeListener("kiosk:desktop-mode-changed", listener);
   },
+  getSystemIdleSeconds: () => ipcRenderer.invoke("kiosk:get-system-idle-time"),
 });

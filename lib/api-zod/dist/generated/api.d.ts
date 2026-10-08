@@ -337,11 +337,17 @@ export declare const GetAllSessionsResponse: zod.ZodObject<{
  */
 export declare const getStatsQueryPeriodDefault = "today";
 export declare const GetStatsQueryParams: zod.ZodObject<{
-    period: zod.ZodDefault<zod.ZodEnum<["today", "week", "month", "year"]>>;
+    period: zod.ZodDefault<zod.ZodEnum<["today", "week", "month", "year", "all"]>>;
+    year: zod.ZodOptional<zod.ZodNumber>;
+    month: zod.ZodOptional<zod.ZodNumber>;
 }, "strip", zod.ZodTypeAny, {
-    period: "today" | "week" | "month" | "year";
+    period: "today" | "week" | "month" | "year" | "all";
+    month?: number | undefined;
+    year?: number | undefined;
 }, {
-    period?: "today" | "week" | "month" | "year" | undefined;
+    month?: number | undefined;
+    year?: number | undefined;
+    period?: "today" | "week" | "month" | "year" | "all" | undefined;
 }>;
 export declare const GetStatsResponse: zod.ZodObject<{
     totalSessions: zod.ZodNumber;

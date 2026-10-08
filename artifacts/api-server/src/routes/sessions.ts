@@ -146,6 +146,9 @@ router.post("/login", async (req, res) => {
     return;
   }
 
+  const settings = loadSettings();
+  const inactivityCutoff = new Date(Date.now() - settings.inactivityLimitMinutes * 60 * 1000);
+
   // Check if PC already has an active session
   const [existingPcSession] = await db
     .select()
@@ -154,8 +157,22 @@ router.post("/login", async (req, res) => {
     .limit(1);
 
   if (existingPcSession) {
-    res.status(409).json({ error: "pc_in_use", message: "This PC already has an active session." });
-    return;
+    // If stale (no activity for inactivity limit), close it and proceed
+    if (existingPcSession.lastActivity && existingPcSession.lastActivity < inactivityCutoff) {
+      const now = new Date();
+      await db
+        .update(sessionsTable)
+        .set({
+          isActive: false,
+          logoutTime: now,
+          durationMinutes: Math.round((now.getTime() - existingPcSession.loginTime.getTime()) / 60000),
+          logoutReason: "inactivity",
+        })
+        .where(eq(sessionsTable.id, existingPcSession.id));
+    } else {
+      res.status(409).json({ error: "pc_in_use", message: "This PC already has an active session." });
+      return;
+    }
   }
 
   // Check if student already has an active session elsewhere
@@ -166,8 +183,22 @@ router.post("/login", async (req, res) => {
     .limit(1);
 
   if (existingStudentSession) {
-    res.status(409).json({ error: "already_logged_in", message: "You are already logged in on another PC." });
-    return;
+    // If stale (no activity for inactivity limit), close it and proceed
+    if (existingStudentSession.lastActivity && existingStudentSession.lastActivity < inactivityCutoff) {
+      const now = new Date();
+      await db
+        .update(sessionsTable)
+        .set({
+          isActive: false,
+          logoutTime: now,
+          durationMinutes: Math.round((now.getTime() - existingStudentSession.loginTime.getTime()) / 60000),
+          logoutReason: "inactivity",
+        })
+        .where(eq(sessionsTable.id, existingStudentSession.id));
+    } else {
+      res.status(409).json({ error: "already_logged_in", message: "You are already logged in on another PC." });
+      return;
+    }
   }
 
   // Create session
@@ -198,8 +229,8 @@ router.post("/login", async (req, res) => {
     loginTime:          session.loginTime,
     mustChangePassword: student.mustChangePassword,
     sessionToken,
-    inactivityLimitMinutes: loadSettings().inactivityLimitMinutes,
-    sessionTimeLimitMinutes: loadSettings().sessionTimeLimitMinutes,
+    inactivityLimitMinutes: settings.inactivityLimitMinutes,
+    sessionTimeLimitMinutes: settings.sessionTimeLimitMinutes,
   });
 });
 

@@ -1,14 +1,20 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { sessionsTable } from "@workspace/db/schema";
-import { eq, and, gte, lt, count, avg, sql } from "drizzle-orm";
+import { eq, and, gte, lte, lt, count, avg, sql } from "drizzle-orm";
 
 const router: IRouter = Router();
 
 // ─── Helper: get startDate from period string ────────────────────────────────
 
-function getStartDate(period: string): Date {
+function getStartDate(period: string, year?: number, month?: number): Date {
   const now = new Date();
+  if (period === "all" || (year !== undefined && month !== undefined)) {
+    if (year !== undefined && month !== undefined) {
+      return new Date(year, month - 1, 1, 0, 0, 0, 0);
+    }
+    return new Date(0); // Unix epoch for "all"
+  }
   switch (period) {
     case "week":  { const d = new Date(now); d.setDate(now.getDate() - 7);       return d; }
     case "year":  { const d = new Date(now); d.setFullYear(now.getFullYear()-1); return d; }
@@ -17,13 +23,26 @@ function getStartDate(period: string): Date {
   }
 }
 
+function getEndDate(period: string, year?: number, month?: number): Date | undefined {
+  if (period === "all") return undefined;
+  if (year !== undefined && month !== undefined) {
+    return new Date(year, month, 0, 23, 59, 59, 999); // Last day of month
+  }
+  return undefined;
+}
+
 // ─── Usage Patterns (existing — peak hours, degree stats, daily trend, top students) ──
 
 router.get("/usage-patterns", async (req, res) => {
   try {
     const period   = (req.query.period as string) ?? "month";
-    const startDate = getStartDate(period);
-    const condition = gte(sessionsTable.loginTime, startDate);
+    const year     = req.query.year ? parseInt(req.query.year as string, 10) : undefined;
+    const month    = req.query.month ? parseInt(req.query.month as string, 10) : undefined;
+    const startDate = getStartDate(period, year, month);
+    const endDate = getEndDate(period, year, month);
+    const conditions = [gte(sessionsTable.loginTime, startDate)];
+    if (endDate) conditions.push(lte(sessionsTable.loginTime, endDate));
+    const condition = conditions.length > 1 ? and(...conditions) : conditions[0];
 
     // Peak hours
     const hourRows = await db
@@ -112,8 +131,14 @@ router.get("/usage-patterns", async (req, res) => {
 router.get("/top-students", async (req, res) => {
   try {
     const period    = (req.query.period as string) ?? "month";
+    const year      = req.query.year ? parseInt(req.query.year as string, 10) : undefined;
+    const month     = req.query.month ? parseInt(req.query.month as string, 10) : undefined;
     const limit     = Math.min(parseInt(req.query.limit as string) || 5, 20);
-    const startDate = getStartDate(period);
+    const startDate = getStartDate(period, year, month);
+    const endDate = getEndDate(period, year, month);
+    const conditions = [gte(sessionsTable.loginTime, startDate)];
+    if (endDate) conditions.push(lte(sessionsTable.loginTime, endDate));
+    const condition = conditions.length > 1 ? and(...conditions) : conditions[0];
 
     const rows = await db
       .select({
@@ -124,7 +149,7 @@ router.get("/top-students", async (req, res) => {
         sessionCount: count(),
       })
       .from(sessionsTable)
-      .where(gte(sessionsTable.loginTime, startDate))
+      .where(condition)
       .groupBy(
         sessionsTable.studentId,
         sessionsTable.name,
@@ -146,8 +171,13 @@ router.get("/top-students", async (req, res) => {
 router.get("/ai-insights", async (req, res) => {
   try {
     const period    = (req.query.period as string) ?? "month";
-    const startDate = getStartDate(period);
-    const condition = gte(sessionsTable.loginTime, startDate);
+    const year      = req.query.year ? parseInt(req.query.year as string, 10) : undefined;
+    const month     = req.query.month ? parseInt(req.query.month as string, 10) : undefined;
+    const startDate = getStartDate(period, year, month);
+    const endDate = getEndDate(period, year, month);
+    const conditions = [gte(sessionsTable.loginTime, startDate)];
+    if (endDate) conditions.push(lte(sessionsTable.loginTime, endDate));
+    const condition = conditions.length > 1 ? and(...conditions) : conditions[0];
 
     // Gather stats for the prompt
     const [totalResult] = await db

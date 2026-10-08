@@ -13,6 +13,7 @@ declare global {
       setDesktopMode: (enabled: boolean, session?: KioskSessionInfo) => void;
       onEndSession?: (cb: () => void) => () => void;
       onDesktopModeChanged?: (cb: (enabled: boolean) => void) => () => void;
+      getSystemIdleSeconds: () => Promise<number>;
     };
   }
 }
@@ -27,6 +28,10 @@ export function setKioskLocked(locked: boolean): void {
 
 export function setKioskDesktopMode(enabled: boolean, session?: KioskSessionInfo): void {
   window.aetherKiosk?.setDesktopMode(enabled, session);
+}
+
+export function getSystemIdleSeconds(): Promise<number> {
+  return window.aetherKiosk?.getSystemIdleSeconds?.() ?? Promise.resolve(0);
 }
 
 /** Fired when the floating badge's "End Session" button is clicked. Returns an unsubscribe fn. */

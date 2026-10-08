@@ -1,5 +1,5 @@
 "use strict";
-const { app, BrowserWindow, globalShortcut, ipcMain, shell, screen } = require("electron");
+const { app, BrowserWindow, globalShortcut, ipcMain, shell, screen, powerMonitor } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const os = require("node:os");
@@ -308,6 +308,15 @@ function createWindow() {
 ipcMain.on("kiosk:lock", () => lock());
 ipcMain.on("kiosk:unlock", () => unlock());
 ipcMain.on("kiosk:set-locked", (_e, locked) => { if (locked) lock(); else unlock(); });
+
+// System idle time (seconds) — used by kiosk to detect real OS-level inactivity
+ipcMain.handle("kiosk:get-system-idle-time", async () => {
+  try {
+    return powerMonitor.getSystemIdleTime();
+  } catch {
+    return 0;
+  }
+});
 
 // Desktop mode from React session hook
 ipcMain.on("kiosk:set-desktop-mode", (_e, enabled, sessionInfo) => {

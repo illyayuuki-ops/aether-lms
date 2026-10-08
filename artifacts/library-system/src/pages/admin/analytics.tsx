@@ -100,12 +100,22 @@ export default function AnalyticsDashboard() {
   const [data, setData] = useState<UsagePatterns | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [period, setPeriod] = useState<"today" | "week" | "month" | "year" | "all">("month");
+  const [customYear, setCustomYear] = useState<number>(new Date().getFullYear());
+  const [customMonth, setCustomMonth] = useState<number>(new Date().getMonth() + 1);
+  const [showCustomPicker, setShowCustomPicker] = useState(false);
 
   const fetchAnalytics = async () => {
     setIsLoading(true);
     try {
       const token = localStorage.getItem("admin_token");
-      const resp = await fetch("/api/admin/analytics/usage-patterns", {
+      const params = new URLSearchParams();
+      params.set("period", period);
+      if (period === "all" || (customYear && customMonth)) {
+        params.set("year", customYear.toString());
+        params.set("month", customMonth.toString());
+      }
+      const resp = await fetch(`/api/admin/analytics/usage-patterns?${params.toString()}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (resp.ok) {
@@ -133,7 +143,7 @@ export default function AnalyticsDashboard() {
       <div className="space-y-6 animate-in fade-in duration-500">
 
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-display font-bold">Usage Analytics</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
@@ -141,10 +151,54 @@ export default function AnalyticsDashboard() {
               {lastUpdated && <span className="ml-2">• Updated {lastUpdated.toLocaleTimeString()}</span>}
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={fetchAnalytics} disabled={isLoading} className="gap-2 rounded-xl">
-            <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
-            Refresh
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center w-full sm:w-auto">
+            <div className="flex gap-1 bg-muted p-1 rounded-xl" role="group" aria-label="Time period">
+              {(["today", "week", "month", "year", "all"] as const).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => { setPeriod(p); setShowCustomPicker(p === "all"); fetchAnalytics(); }}
+                  className={cn(
+                    "px-3 py-1.5 text-sm font-medium rounded-lg transition-colors",
+                    period === p
+                      ? "bg-background shadow-sm text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {p.charAt(0).toUpperCase() + p.slice(1)}
+                </button>
+              ))}
+            </div>
+            {showCustomPicker && (
+              <div className="flex items-center gap-2 bg-muted p-2 rounded-xl">
+                <label htmlFor="analytics-year" className="text-xs text-muted-foreground">Year</label>
+                <select
+                  id="analytics-year"
+                  value={customYear}
+                  onChange={(e) => { setCustomYear(Number(e.target.value)); fetchAnalytics(); }}
+                  className="px-2 py-1.5 text-sm border border-input bg-background rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+                <label htmlFor="analytics-month" className="text-xs text-muted-foreground">Month</label>
+                <select
+                  id="analytics-month"
+                  value={customMonth}
+                  onChange={(e) => { setCustomMonth(Number(e.target.value)); fetchAnalytics(); }}
+                  className="px-2 py-1.5 text-sm border border-input bg-background rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                    <option key={m} value={m}>{new Date(2000, m - 1).toLocaleString("default", { month: "long" })}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <Button variant="outline" size="sm" onClick={fetchAnalytics} disabled={isLoading} className="gap-2 rounded-xl">
+              <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         {isLoading && !data ? (
@@ -292,7 +346,7 @@ export default function AnalyticsDashboard() {
             </div>
 
             {/* AI Insights — Real Widget */}
-            <AiInsightsWidget />
+            <AiInsightsWidget period={period} customYear={customYear} customMonth={customMonth} />
           </>
         )}
       </div>
@@ -302,7 +356,7 @@ export default function AnalyticsDashboard() {
 
 // ─── AI Insights Widget ──────────────────────────────────────────────────────
 
-function AiInsightsWidget() {
+function AiInsightsWidget({ period, customYear, customMonth }: { period: "today" | "week" | "month" | "year" | "all"; customYear: number; customMonth: number }) {
   const [insights, setInsights] = useState<string | null>(null);
   const [loading, setLoading]   = useState(false);
 
@@ -310,7 +364,13 @@ function AiInsightsWidget() {
     setLoading(true);
     try {
       const token = localStorage.getItem("admin_token");
-      const resp  = await fetch("/api/admin/analytics/ai-insights?period=month", {
+      const params = new URLSearchParams();
+      params.set("period", period);
+      if (period === "all" || (customYear && customMonth)) {
+        params.set("year", customYear.toString());
+        params.set("month", customMonth.toString());
+      }
+      const resp  = await fetch(`/api/admin/analytics/ai-insights?${params.toString()}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const data  = await resp.json();

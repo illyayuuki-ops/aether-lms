@@ -30,7 +30,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "publisherName": "Aether LMS"
@@ -47,6 +49,7 @@
     }
   },
   "devDependencies": {
+    "@electron/get": "^5.1.0",
     "electron": "^35.0.0",
     "electron-builder": "^25.1.8"
   }
