@@ -28,6 +28,9 @@ export default defineConfig({
   server: {
     port,
     host: "0.0.0.0",
+    // The app is served behind a proxied preview host (*.e2b.app) in hosted
+    // environments; without this Vite answers 403 "Blocked request".
+    allowedHosts: [".e2b.app", "localhost", "127.0.0.1"],
     proxy: {
       "/api": {
         target: "http://localhost:3000",

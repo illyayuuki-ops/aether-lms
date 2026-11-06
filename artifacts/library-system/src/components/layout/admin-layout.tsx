@@ -4,7 +4,7 @@ import { useAdminAuth } from "@/hooks/use-auth";
 import {
   LayoutDashboard, Users, Monitor, History, LogOut, Library,
   GraduationCap, ShieldCheck, Settings, BarChart2, Lock, LockOpen,
-  Radio,
+  Radio, FileBarChart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -57,6 +57,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     { href: "/admin/students", label: "Students",        icon: GraduationCap },
     { href: "/admin/admins",   label: "Admin Accounts",  icon: ShieldCheck },
     { href: "/admin/analytics",label: "Analytics",       icon: BarChart2 },
+    { href: "/admin/reports",  label: "Reports",         icon: FileBarChart },
     { href: "/admin/settings", label: "Settings",        icon: Settings },
   ];
 
@@ -67,6 +68,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     "/admin/students":  "Student Registry",
     "/admin/admins":    "Admin Accounts",
     "/admin/analytics": "Analytics",
+    "/admin/reports":   "Reports",
     "/admin/settings":  "Settings",
   };
 

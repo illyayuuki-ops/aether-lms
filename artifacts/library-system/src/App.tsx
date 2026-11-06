@@ -13,6 +13,8 @@ import AdminStudents from "./pages/admin/students";
 import AdminAdmins from "./pages/admin/admins";
 import SettingsPage from "./pages/admin/settings";
 import AnalyticsPage from "./pages/admin/analytics";
+import ReportsPage from "./pages/admin/reports/index";
+import ReportPrintPage from "./pages/admin/reports/print";
 import NotFound from "./pages/not-found";
 
 const queryClient = new QueryClient({
@@ -45,6 +47,9 @@ function Router() {
       <Route path="/admin/admins" component={() => <ProtectedRoute component={AdminAdmins} />} />
       <Route path="/admin/settings" component={() => <ProtectedRoute component={SettingsPage} />} />
       <Route path="/admin/analytics" component={() => <ProtectedRoute component={AnalyticsPage} />} />
+      <Route path="/admin/reports" component={() => <ProtectedRoute component={ReportsPage} />} />
+      {/* Print view renders its own page — no admin chrome, no layout */}
+      <Route path="/admin/reports/print" component={() => <ProtectedRoute component={ReportPrintPage} />} />
 
       <Route component={NotFound} />
     </Switch>

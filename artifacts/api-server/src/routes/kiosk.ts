@@ -1,9 +1,9 @@
 import { Router, Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import { jwtSecret } from "../lib/env";
 
 const router = Router();
 
-const JWT_SECRET = process.env.JWT_SECRET || "library-jwt-secret-change-me";
 
 declare module "express" {
   interface Request {
@@ -21,7 +21,7 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
 
   const token = auth.slice(7);
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as { adminId: number; role: string };
+    const payload = jwt.verify(token, jwtSecret()) as { adminId: number; role: string };
     req.adminId = payload.adminId;
     req.adminRole = payload.role;
     next();

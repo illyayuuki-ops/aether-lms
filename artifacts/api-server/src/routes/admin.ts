@@ -14,6 +14,7 @@ import {
 import studentsRouter from "./students";
 import adminsMgmtRouter from "./admins-mgmt";
 import analyticsRouter from "./analytics";
+import { jwtSecret } from "../lib/env";
 
 const router: IRouter = Router();
 
@@ -32,7 +33,6 @@ async function verifyPassword(plain: string, stored: string): Promise<boolean> {
   return plain === stored;
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || "library-jwt-secret-change-me";
 const JWT_EXPIRY = "8h";
 const TOTAL_COMPUTERS = 20;
 
@@ -52,7 +52,7 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
 
   const token = auth.slice(7);
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as { adminId: number; role: string };
+    const payload = jwt.verify(token, jwtSecret()) as { adminId: number; role: string };
     req.adminId = payload.adminId;
     req.adminRole = payload.role;
     next();
@@ -107,7 +107,7 @@ router.post("/login", async (req, res) => {
 
       const token = jwt.sign(
         { adminId: admin.id, role: admin.role },
-        JWT_SECRET,
+        jwtSecret(),
         { expiresIn: JWT_EXPIRY }
       );
 

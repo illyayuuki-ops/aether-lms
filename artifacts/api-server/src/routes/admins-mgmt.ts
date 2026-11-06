@@ -5,10 +5,10 @@ import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import { jwtSecret } from "../lib/env";
 
 const router: IRouter = Router();
 
-const JWT_SECRET = process.env.JWT_SECRET || "library-jwt-secret-change-me";
 const JWT_EXPIRY = "8h";
 
 // ─── Zod Schemas ─────────────────────────────────────────────────────────────
