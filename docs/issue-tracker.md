@@ -10,6 +10,9 @@
 >
 > **Keep it alive:** `pnpm audit:code` runs an automated guard (`scripts/audit.mjs`) that counts these
 > patterns so they can't silently come back. `pnpm audit:code -- --strict` fails if any rule got worse.
+>
+> **Reporting & research use** has its own companion file: [`reporting-gaps.md`](reporting-gaps.md)
+> (`RPT-01` … `RPT-12`) — how to turn these tables into defensible reports for a school paper.
 
 ---
 
@@ -54,14 +57,14 @@ Anything `open` at `S1`/`S2` should be in the current milestone.
 | [LOG-05](#log-05) | **S2** | Sessions | The sweeper always runs; there is no "automatic logout" off-switch | open |
 | [LOG-06](#log-06) | **S2** | Sessions | Default passwords never force a change; the force-change flow is dead code | open |
 | [LOG-07](#log-07) | **S3** | Sessions | `logoutReason` accepts any string; token check silently skipped when empty | open |
-| [LOG-08](#log-08) | **S2** | Reports | Exports silently cap at 50 rows | open |
+| [LOG-08](#log-08) | **S2** | Reports | Exports silently cap at 50 rows *(→ [RPT-03](reporting-gaps.md))* | open |
 | [PURP-01](#purp-01) | **S2** | Kiosk UI | "Student Registration" screen registers nothing | open |
 | [PURP-02](#purp-02) | **S2** | Admin UI | Both lock buttons lie about what they lock | open |
 | [PURP-03](#purp-03) | **S3** | Admin UI | 869-line duplicate kiosk page that is not routed anywhere | open |
 | [PURP-04](#purp-04) | **S2** | Kiosk | Remote lock/unlock only works for the Electron shell | open |
 | [PURP-05](#purp-05) | **S2** | Admin UI | "Session History" is decided by a URL string inside a shared component | open |
 | [PURP-06](#purp-06) | **S3** | Admin UI | "Lock All" status is local state — it forgets and never confirms | open |
-| [PURP-07](#purp-07) | **S3** | Reports | "Grade Level" filters a course/degree column | open |
+| [PURP-07](#purp-07) | **S3** | Reports | "Grade Level" filters a course/degree column *(→ [RPT-04 §4](reporting-gaps.md))* | open |
 | [PURP-08](#purp-08) | **S3** | Reports | AI insights silently degrade; model name is unverifiable | open |
 | [PURP-09](#purp-09) | **S2** | Ops | Student import loads a library from the public internet | open |
 | [PURP-10](#purp-10) | **S2** | Data | Deleting a student leaves their session running | open |
@@ -70,7 +73,7 @@ Anything `open` at `S1`/`S2` should be in the current milestone.
 | [REL-03](#rel-03) | **S2** | Reliability | Client and server disagree on what "inactivity" means | open |
 | [REL-04](#rel-04) | **S2** | Reliability | Settings live in a JSON file, not the database | open |
 | [REL-05](#rel-05) | **S2** | Reliability | Server clock is the only clock — a wrong PC clock breaks sessions | open |
-| [REL-06](#rel-06) | **S3** | Reports | "Week"/"Month"/"Today" are rolling windows in local time | open |
+| [REL-06](#rel-06) | **S3** | Reports | "Week"/"Month"/"Today" are rolling windows in local time *(→ [RPT-10](reporting-gaps.md))* | open |
 | [REL-07](#rel-07) | **S2** | Build | Deployed frontend is a committed build artifact, not built source | open |
 | [REL-08](#rel-08) | **S3** | Reliability | No render error boundary — one exception blanks the kiosk | open |
 | [OPS-01](#ops-01) | **S3** | Frontend | Dashboard polls by hand while react-query retries underneath | open |
@@ -650,6 +653,25 @@ Anything `open` at `S1`/`S2` should be in the current milestone.
 | **P3 — durability** | [LOG-01](#log-01), [LOG-04](#log-04), [LOG-06](#log-06), [LOG-02](#log-02), [REL-07](#rel-07), [OPS-07](#ops-07), [OPS-08](#ops-08) | Needs schema/index changes and a repeatable release process. |
 | **P4 — hygiene** | Everything else | Do opportunistically; the audit script keeps them from growing. |
 
+### Reporting track
+
+The reporting/analytics surface is tracked separately in [`reporting-gaps.md`](reporting-gaps.md)
+(`RPT-01` … `RPT-12`) because it is a different question — *"can staff produce a defensible dataset?"*
+rather than *"is this function correct?"*. The highest-leverage overlap with the table above:
+
+| Reporting item | Depends on tracker item | Note |
+|---|---|---|
+| RPT-01 term filters are decorative | — | Pure UI + date-range work, no schema change |
+| RPT-02 exports aren't valid data files | [LOG-08](#log-08) | Both fixed by moving export server-side |
+| RPT-03 no coverage disclosure | [LOG-08](#log-08) | Show `1–50 of N`, stamp "as of" |
+| RPT-07 records are deletable, no audit | [PURP-10](#purp-10) | Same fix: soft delete + audit log |
+| RPT-08 no agreed definitions | [REL-03](#rel-03), [LOG-07](#log-07) | Needs one idle definition + a reason enum |
+| RPT-10 UTC bucketing | [REL-06](#rel-06) | One configured timezone |
+
+**Do this before starting the reporting work:** items [SEC-01](#sec-01), [LOG-03](#log-03) and
+[REL-01](#rel-01). Reports built on an API where any librarian can become Super Admin, and where a
+settings save can silently fail, are not evidence of anything.
+
 ---
 
 ## 9. Decisions & conventions — *the "we don't do that here" list*
@@ -694,3 +716,4 @@ These are the rules the entries above imply. Add a line when we settle an argume
 | Date | Change |
 |---|---|
 | 2026-11-06 | Initial audit (`49477fd`). 32 entries; baseline set in `docs/audit-baseline.json`. |
+| 2026-11-06 | Added reporting track — see [`reporting-gaps.md`](reporting-gaps.md) (12 further entries). |

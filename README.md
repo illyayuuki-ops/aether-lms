@@ -8,6 +8,10 @@ and an optional **Electron kiosk shell** for Windows student PCs.
 > It records the known problems, what each function is *supposed* to do, the rules we've agreed on,
 > and the phase-ordered plan. Run `pnpm audit:code` to see whether the count of known anti-patterns
 > has grown.
+>
+> **Building reports or a school analysis paper?** Read
+> [`docs/reporting-gaps.md`](docs/reporting-gaps.md) first — it lists which research questions the
+> system can and cannot answer today, the report catalogue to add, and the schema changes needed.
 
 ## Layout
 
@@ -20,7 +24,7 @@ and an optional **Electron kiosk shell** for Windows student PCs.
 | `lib/api-spec` | OpenAPI spec — **currently out of date**, see OPS-07 in the tracker |
 | `lib/api-zod`, `lib/api-client-react` | Generated zod validators and react-query hooks |
 | `scripts` | Install/build/packaging scripts and `audit.mjs` |
-| `docs` | Issue tracker + audit baseline |
+| `docs` | Issue tracker, reporting-gaps analysis, audit baseline |
 
 ## Run it locally
 
