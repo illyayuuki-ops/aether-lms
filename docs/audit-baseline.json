@@ -1,0 +1,15 @@
+{
+  "hardcoded-jwt-fallback": 3,
+  "default-master-admin": 1,
+  "default-setup-code": 1,
+  "client-supplied-role": 5,
+  "plaintext-password-compare": 2,
+  "raw-secret-code-compare": 2,
+  "silent-catch": 12,
+  "remote-cdn-import": 1,
+  "wildcard-cors": 1,
+  "hardcoded-db-credential": 3,
+  "recovery-pin-in-config": 1,
+  "any-cast": 30,
+  "todo-marker": 0
+}

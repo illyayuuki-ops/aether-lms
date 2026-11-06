@@ -7,6 +7,7 @@
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
+    "audit:code": "node scripts/audit.mjs",
     "dev:api": "pnpm --dir artifacts/api-server run dev",
     "dev:web": "pnpm --dir artifacts/library-system run dev",
     "dev": "pnpm dlx concurrently \"cross-env DATABASE_URL=postgresql://postgres:030306@localhost:5432/aether_lms PORT=3000 pnpm --dir artifacts/api-server run dev\" \"cross-env PORT=5173 BASE_PATH=/ pnpm --dir artifacts/library-system run dev\"",
