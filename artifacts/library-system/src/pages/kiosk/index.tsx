@@ -254,6 +254,15 @@ function SelfServicePanel({
           }),
         }
       );
+      if (resp.status === 401) {
+        toast({
+          title: "Cannot Change Password",
+          description:
+            "This account already has a personal password. Please ask the librarian to reset it.",
+          variant: "destructive",
+        });
+        return;
+      }
       if (!resp.ok) {
         toast({ title: "Error", description: "Failed to save password. Try again.", variant: "destructive" });
         return;
@@ -489,6 +498,7 @@ function LoginView({ onLogin, currentTime }: { onLogin: (s: any) => void; curren
         body: JSON.stringify({
           studentId: pendingSession.studentId,
           newPassword: data.newPassword,
+          sessionToken: pendingSession.sessionToken,
         }),
       });
       if (!resp.ok) {

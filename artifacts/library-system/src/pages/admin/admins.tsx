@@ -85,13 +85,11 @@ export default function AdminsPage() {
     setTogglingId(a.id);
     try {
       const token = localStorage.getItem("admin_token");
-      const role  = localStorage.getItem("admin_role") ?? "librarian";
       const resp = await fetch(`/api/admin/admins/${a.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           "Authorization": token ? `Bearer ${token}` : "",
-          "x-admin-role": role,
         },
         body: JSON.stringify({ isActive: !a.isActive }),
       });
@@ -108,22 +106,19 @@ export default function AdminsPage() {
     }
   };
 
-  // FIX: handleSave uses direct fetch with authHeaders — this is the root cause of the 403.
-  // The api-client-react useCreateAdmin/useUpdateAdmin hooks do NOT send x-admin-role header,
-  // so the backend always sees "librarian" and blocks the request.
+  // handleSave uses a direct fetch so it can send the Bearer token explicitly.
+  // Authorization is decided server-side from that token.
   const handleSave = async () => {
     if (form.username.trim().length < 3) { setFormError("Username must be at least 3 characters."); return; }
-    if (editingId === null && form.password.length < 4) { setFormError("Password must be at least 4 characters."); return; }
-    if (editingId === null && !form.secretCode.trim()) { setFormError("Secret code is required."); return; }
+    if (editingId === null && form.password.length < 8) { setFormError("Password must be at least 8 characters."); return; }
+    if (editingId === null && form.secretCode.trim().length < 6) { setFormError("Secret code must be at least 6 characters."); return; }
     setFormError("");
     setIsSaving(true);
 
     const token = localStorage.getItem("admin_token");
-    const role  = localStorage.getItem("admin_role") ?? "librarian";
     const headers = {
       "Content-Type": "application/json",
       "Authorization": token ? `Bearer ${token}` : "",
-      "x-admin-role": role,
     };
 
     try {
@@ -190,13 +185,11 @@ export default function AdminsPage() {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem("admin_token");
-      const role  = localStorage.getItem("admin_role") ?? "librarian";
       const resp  = await fetch(`/api/admin/admins/${id}`, {
         method: "DELETE",
         headers: {
           "Content-Type":  "application/json",
           "Authorization": token ? `Bearer ${token}` : "",
-          "x-admin-role":  role,
         },
         body: JSON.stringify({ protectSuperAdmins }),
       });

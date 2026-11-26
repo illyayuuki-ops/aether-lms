@@ -3,7 +3,8 @@ import { db } from "@workspace/db";
 import { studentsTable } from "@workspace/db/schema";
 import { eq, and, sql, count } from "drizzle-orm";
 import { z } from "zod";
-import bcrypt from "bcrypt";
+import { hashPassword } from "../middlewares/auth";
+import { MIN_PASSWORD_LENGTH } from "../lib/config";
 
 const router: IRouter = Router();
 
@@ -15,12 +16,12 @@ const StudentBodySchema = z.object({
   degree: z.string().min(1, "Degree is required"),
   major: z.string().optional().nullable(),
   yearLevel: z.string().min(1, "Year level is required"),
-  password: z.string().min(1, "Password must not be empty").optional(),
+  password: z.string().min(MIN_PASSWORD_LENGTH, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`).optional(),
   isActive: z.boolean().optional(),
 });
 
 const ResetPasswordSchema = z.object({
-  newPassword: z.string().min(4, "Password must be at least 4 characters"),
+  newPassword: z.string().min(MIN_PASSWORD_LENGTH, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`),
   mustChangePassword: z.boolean().optional().default(false),
 });
 
@@ -132,8 +133,10 @@ router.post("/", async (req, res) => {
     return;
   }
 
+  // Default password is the student ID, so force a change on first login.
+  const usingDefaultPassword = !parsed.data.password;
   const password = parsed.data.password ?? parsed.data.studentId;
-  const hashedPassword = await bcrypt.hash(password, 10);
+  const hashedPassword = await hashPassword(password);
 
   const [created] = await db
     .insert(studentsTable)
@@ -144,7 +147,7 @@ router.post("/", async (req, res) => {
       major:              parsed.data.major ?? null,
       yearLevel:          parsed.data.yearLevel,
       password:           hashedPassword,
-      mustChangePassword: false,
+      mustChangePassword: usingDefaultPassword,
       isActive:           parsed.data.isActive ?? true,
     })
     .returning({
@@ -218,7 +221,7 @@ router.put("/:id", async (req, res) => {
   };
 
   if (parsed.data.password) {
-    updatePayload.password             = await bcrypt.hash(parsed.data.password, 10);
+    updatePayload.password             = await hashPassword(parsed.data.password);
     updatePayload.mustChangePassword   = false;
   }
 
@@ -267,7 +270,7 @@ router.post("/:id/reset-password", async (req, res) => {
     return;
   }
 
-  const hashedPassword = await bcrypt.hash(parsed.data.newPassword, 10);
+  const hashedPassword = await hashPassword(parsed.data.newPassword);
 
   await db
     .update(studentsTable)
