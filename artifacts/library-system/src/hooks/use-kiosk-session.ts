@@ -188,22 +188,34 @@ export function useKioskSession() {
         return;
       }
 
-      // Check system idle time when running in Electron kiosk (desktop mode)
+      // ── Determine real inactivity ────────────────────────────────────────
+      // DOM events only fire when THIS window has focus. A student typing in
+      // Word, scrolling a PDF, or reading without touching the mouse produces
+      // no events here — which wrongly logged them out. The OS idle timer is
+      // authoritative, so take the SMALLER of the two idle values: if the
+      // operating system says the machine was touched 30s ago, the student is
+      // active no matter what our DOM listeners saw.
+      let systemIdleMs: number | null = null;
       if (isElectronKiosk()) {
         try {
           const systemIdleSeconds = await getSystemIdleSeconds();
-          const systemIdleMs = systemIdleSeconds * 1000;
-          // If system has been active more recently than our lastActivityRef, treat as activity
-          if (systemIdleMs < inactiveMs) {
-            lastActivityRef.current = now;
-            activityPendingRef.current = true;
+          if (typeof systemIdleSeconds === "number" && systemIdleSeconds >= 0) {
+            systemIdleMs = systemIdleSeconds * 1000;
           }
         } catch {
-          // Fallback to window listeners if IPC fails
+          // IPC unavailable — fall back to DOM activity only.
         }
       }
 
-      const currentInactiveMs = now - lastActivityRef.current;
+      const domInactiveMs = now - lastActivityRef.current;
+      const currentInactiveMs =
+        systemIdleMs === null ? domInactiveMs : Math.min(domInactiveMs, systemIdleMs);
+
+      // Keep lastActivityRef in sync with reality so the next tick is accurate.
+      if (currentInactiveMs < domInactiveMs) {
+        lastActivityRef.current = now - currentInactiveMs;
+        activityPendingRef.current = true;
+      }
 
       if (currentInactiveMs >= inactivityLimitMs && !isLoggingOutRef.current) {
         clearInterval(interval);

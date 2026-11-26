@@ -1,1 +1,0 @@
-{"version":3,"file":"heartbeatResponse.d.ts","sourceRoot":"","sources":["../../../src/generated/types/heartbeatResponse.ts"],"names":[],"mappings":"AAAA;;;;;;GAMG;AAEH,MAAM,WAAW,iBAAiB;IAChC,OAAO,CAAC,EAAE,OAAO,CAAC;IAClB,MAAM,EAAE,OAAO,CAAC;IAChB,iFAAiF;IACjF,KAAK,CAAC,EAAE,MAAM,CAAC;IACf,uBAAuB,CAAC,EAAE,MAAM,CAAC;IACjC,gBAAgB,CAAC,EAAE,MAAM,CAAC;CAC3B"}

@@ -32,6 +32,17 @@ import {
 import { useKioskSession } from "@/hooks/use-kiosk-session";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { cn, logZodError } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { setKioskDesktopMode, onKioskDesktopModeChanged, onKioskEndSession, isElectronKiosk } from "@/lib/electron-kiosk";
@@ -683,10 +694,15 @@ function LoginView({ onLogin, currentTime }: { onLogin: (s: any) => void; curren
             </button>
           </div>
 
-          {/* Developer credits */}
-          <p className="text-center text-white/20 text-xs pt-1">
-            Developed by: Pababero, John Raphael • Alemania, Julia Cassandra • Galit, Jake Mathew • Piamonte, Nash Steven
-          </p>
+          {/* Developer credits — must stay legible on a kiosk screen */}
+          <div className="text-center pt-2 space-y-1">
+            <p className="text-white/70 text-sm font-medium">
+              Developed by: Pababero, John Raphael • Alemania, Julia Cassandra • Galit, Jake Mathew • Piamonte, Nash Steven
+            </p>
+            <p className="text-white/55 text-sm">
+              BSIT 2 — 1st Semester, AY 2025–2026
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -761,9 +777,10 @@ function ActiveSessionView({ session, elapsedSeconds, isWarning, onLogout, isLog
     weekday: "long", year: "numeric", month: "long", day: "numeric",
   });
 
-  // ── Desktop Mode UI — the Electron shell minimizes the kiosk window and
-  // shows a native floating badge, so render nothing here. In a plain
-  // browser we keep the in-page floating badge as a fallback.
+  // ── Desktop Mode UI ──────────────────────────────────────────────────────
+  // In Electron the shell keeps the kiosk window fullscreen (it used to
+  // minimize) and shows the native floating session badge on top, so render
+  // nothing here. In a plain browser we keep the in-page badge as a fallback.
   if (isDesktopMode && isElectronKiosk()) {
     return null;
   }
@@ -788,7 +805,7 @@ function ActiveSessionView({ session, elapsedSeconds, isWarning, onLogout, isLog
                  <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0" />
                  <p className="text-white text-xs font-semibold truncate">{session.name}</p>
                </div>
-               <p className="text-white/80 font-semibold text-xs">
+               <p className="text-white/80 font-semibold text-sm">
                  PC {session.computerNumber.toString().padStart(2, "0")} •{" "}
                  <span className="font-mono text-accent">{formatTime(elapsedSeconds)}</span>
                </p>
@@ -893,16 +910,33 @@ function ActiveSessionView({ session, elapsedSeconds, isWarning, onLogout, isLog
                 <span className="text-xs font-semibold uppercase tracking-wider text-foreground mt-1">Elapsed</span>
               </div>
             </div>
-            <Button
-              size="lg"
-              variant="destructive"
-              className="mt-8 w-full rounded-2xl gap-2 font-bold text-lg"
-              onClick={onLogout}
-              disabled={isLoggingOut}
-            >
-              <LogOut className="w-5 h-5" />
-              {isLoggingOut ? "Ending..." : "End Session"}
-            </Button>
+            {/* Ending a session is destructive, so it always asks first. */}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  size="lg"
+                  variant="destructive"
+                  className="mt-8 w-full rounded-2xl gap-2 font-bold text-lg"
+                  disabled={isLoggingOut}
+                >
+                  <LogOut className="w-5 h-5" />
+                  {isLoggingOut ? "Ending..." : "End Session"}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>End this session?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Your session will be closed and the PC will be released for the next
+                    student. Any unsaved work will be lost.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={onLogout}>Yes, end session</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
       </div>

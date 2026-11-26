@@ -148,8 +148,8 @@ function createBadge(sessionInfo) {
   const pc = String((sessionInfo && sessionInfo.computerNumber) ? sessionInfo.computerNumber : "?").padStart(2, "0");
 
   const workArea = screen.getPrimaryDisplay().workArea;
-  const width = 300;
-  const height = 96;
+  const width = 340;
+  const height = 108;
 
   badgeWindow = new BrowserWindow({
     width,
@@ -160,7 +160,8 @@ function createBadge(sessionInfo) {
     alwaysOnTop: true,
     skipTaskbar: true,
     resizable: false,
-    movable: true,
+    // Fixed position: students must not be able to drag the session badge away.
+    movable: false,
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
@@ -177,21 +178,39 @@ function createBadge(sessionInfo) {
 
   const badgeHtml = `<!DOCTYPE html>
 <html>
-<body style="margin:0;padding:0;background:#0f172a;font-family:sans-serif;overflow:hidden;-webkit-app-region:drag;user-select:none">
+<body style="margin:0;padding:0;background:#0f172a;font-family:sans-serif;overflow:hidden;user-select:none">
   <div style="display:flex;flex-direction:column;gap:8px;padding:12px 14px;box-sizing:border-box">
     <div style="display:flex;align-items:center;gap:8px">
       <div style="width:8px;height:8px;border-radius:50%;background:#4ade80;animation:pulse 2s infinite;flex-shrink:0"></div>
-      <span style="color:white;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1">${name}</span>
-      <span style="color:rgba(255,255,255,0.5);font-size:11px;flex-shrink:0">PC ${pc}</span>
+      <span style="color:white;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1">${name}</span>
+      <span style="color:rgba(255,255,255,0.5);font-size:12px;flex-shrink:0">PC ${pc}</span>
     </div>
-    <div style="display:flex;gap:8px">
-      <button id="end" style="-webkit-app-region:no-drag;flex:1;background:#dc2626;color:white;border:none;border-radius:10px;padding:8px 0;font-size:12px;font-weight:600;cursor:pointer">End Session</button>
-      <button id="back" style="-webkit-app-region:no-drag;flex:1;background:#2563eb;color:white;border:none;border-radius:10px;padding:8px 0;font-size:12px;font-weight:600;cursor:pointer">↩ Session</button>
+    <div id="actions" style="display:flex;gap:10px">
+      <button id="end" style="flex:1;background:#1e293b;color:#fca5a5;border:1px solid #7f1d1d;border-radius:10px;padding:10px 0;font-size:12px;font-weight:600;cursor:pointer">End Session</button>
+      <button id="back" style="flex:1;background:#2563eb;color:white;border:none;border-radius:10px;padding:10px 0;font-size:13px;font-weight:700;cursor:pointer">↩ Back to Kiosk</button>
+    </div>
+    <div id="confirm" style="display:none;gap:10px">
+      <span style="color:#fca5a5;font-size:11px;align-self:center;flex:1">End this session?</span>
+      <button id="cancel" style="background:#334155;color:white;border:none;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer">Cancel</button>
+      <button id="really" style="background:#dc2626;color:white;border:none;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer">Yes, end</button>
     </div>
   </div>
   <style>@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}</style>
   <script>
-    document.getElementById('end').onclick  = () => window.aetherKiosk.endSession();
+    // "End Session" is destructive, so it asks for confirmation first — a
+    // single misclick on the badge must never log the student out.
+    const actions = document.getElementById('actions');
+    const confirmBox = document.getElementById('confirm');
+
+    document.getElementById('end').onclick = () => {
+      actions.style.display = 'none';
+      confirmBox.style.display = 'flex';
+    };
+    document.getElementById('cancel').onclick = () => {
+      confirmBox.style.display = 'none';
+      actions.style.display = 'flex';
+    };
+    document.getElementById('really').onclick = () => window.aetherKiosk.endSession();
     document.getElementById('back').onclick = () => window.aetherKiosk.restore();
   </script>
 </body>
@@ -211,13 +230,19 @@ function createBadge(sessionInfo) {
 function enterDesktopMode(sessionInfo) {
   if (!mainWindow || isDesktopMode) return;
   isDesktopMode = true;
-  unregisterShortcuts();
-  mainWindow.setTitle("Aether LMS Kiosk");
-  mainWindow.setAlwaysOnTop(false);
-  mainWindow.setFullScreen(false);
-  mainWindow.setMinimizable(true);
-  mainWindow.minimize();
-  createBadge(sessionInfo);
+
+  // "Desktop mode" means the student may use the PC, so Windows shortcuts are
+  // released — but the kiosk window itself STAYS fullscreen and on top. It used
+  // to call minimize(), which dropped the student onto a bare desktop with only
+  // a small floating badge and no way to get back.
+  mainWindow.setTitle("Aether LMS Session");
+  mainWindow.setFullScreen(true);
+  mainWindow.setAlwaysOnTop(true, "screen-saver");
+  mainWindow.setClosable(false);
+  mainWindow.show();
+  mainWindow.focus();
+
+  mainWindow.webContents.send("kiosk:desktop-mode-changed", true);
 }
 
 function exitDesktopMode() {
@@ -227,8 +252,12 @@ function exitDesktopMode() {
     mainWindow.restore();
     mainWindow.show();
     mainWindow.focus();
-    if (isLocked || isSessionActive) registerShortcuts();
-    if (isLocked) lock();
+    // Re-apply kiosk chrome so the window is locked again before we hand
+    // control back to the React layer.
+    if (isLocked || isSessionActive) {
+      applyKioskChrome();
+      registerShortcuts();
+    }
     mainWindow.webContents.send("kiosk:desktop-mode-changed", false);
   }
 }

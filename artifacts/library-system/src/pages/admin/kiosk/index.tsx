@@ -614,9 +614,9 @@ function LoginView({ onLogin, currentTime }: { onLogin: (s: any) => void; curren
           </button>
 
           {/* Developer credits */}
-          <div className="text-center text-white/20 text-xs pt-1 space-y-1">
-            <p>Developed by: Pababero, John Raphael • Alemania, Julia Cassandra • Galit, Jake Mathew • Piamonte, Nash Steven</p>
-            <p>2nd year Batch 2025-2026</p>
+          <div className="text-center text-white/70 text-sm pt-2 space-y-1">
+            <p className="font-medium">Developed by: Pababero, John Raphael • Alemania, Julia Cassandra • Galit, Jake Mathew • Piamonte, Nash Steven</p>
+            <p className="text-white/55">BSIT 2 — 1st Semester, AY 2025–2026</p>
           </div>
         </div>
       </div>

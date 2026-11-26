@@ -43,7 +43,30 @@ jobs:
       - name: Fail if a database dump is committed
         run: |
           # Dumps contain real student PII; they must never live in the repo.
-          if git ls-files | grep -Ei '\.(sql|dump|pgsql)$' | grep -v '^scripts/fixtures/'; then
+          # Drizzle migrations and seed fixtures are source, not dumps.
+          if git ls-files | grep -Ei '\.(sql|dump|pgsql)$' \
+               | grep -v '^scripts/fixtures/' \
+               | grep -v '^lib/db/drizzle/'; then
             echo "::error::A database dump is tracked in git. Remove it and rotate any exposed credentials."
             exit 1
           fi
+
+      - name: Fail if build output is committed
+        run: |
+          if git ls-files | grep -E '^(lib/[^/]+/dist|artifacts/[^/]+/dist)/'; then
+            echo "::error::Build output is tracked. These directories are gitignored; run git rm -r --cached <dir>."
+            exit 1
+          fi
+
+      - name: Fail if a migration is missing its SQL file
+        run: |
+          # Every entry in the Drizzle journal must have a matching .sql file.
+          # A journal entry without SQL makes `db:migrate` fail at deploy time.
+          missing=0
+          for tag in $(grep -o '"tag": *"[^"]*"' lib/db/drizzle/meta/_journal.json | cut -d'"' -f4); do
+            if [ ! -f "lib/db/drizzle/${tag}.sql" ]; then
+              echo "::error::Migration '${tag}' is in the journal but lib/db/drizzle/${tag}.sql is missing."
+              missing=1
+            fi
+          done
+          exit $missing

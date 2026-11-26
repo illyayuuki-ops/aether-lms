@@ -18,7 +18,10 @@
 ; !ifmacrodef customInstall in electron-builder's installSection.nsh sees a
 ; real macro and the compiler does not warn about unreferenced functions.
 
-!define DEFAULT_SERVER_URL "http://172.16.50.47:3000"
+; Fallback only — set the real address with a server-ip.txt file next to the
+; installer (first line), or rebuild with this define changed. Keeping the
+; school's private IP out of a public repo.
+!define DEFAULT_SERVER_URL "http://localhost:3000"
 !define DEFAULT_EMERGENCY_PIN ""
 
 !define KIOSK_APPDATA_DIR "$APPDATA\Aether LMS Kiosk"

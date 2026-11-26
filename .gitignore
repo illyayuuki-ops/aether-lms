@@ -38,4 +38,6 @@ artifacts/api-server/system-settings.json
 *.dump
 *.pgsql
 *.sql.gz
+# ...but Drizzle migrations and seed fixtures ARE source and must be committed.
+!lib/db/drizzle/*.sql
 !/scripts/fixtures/*.sql
