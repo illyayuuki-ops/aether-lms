@@ -1,5 +1,5 @@
 {
   "serverUrl": "http://localhost:3000",
   "autoLaunch": true,
-  "comment": "serverUrl is the ADMIN PC address on the school network. The installer prompts for it and writes the real value to %APPDATA%/Aether LMS Kiosk/config.json, so the committed default only needs to work on the admin PC itself. Set autoLaunch to false to stop the kiosk starting on Windows login."
+  "comment": "serverUrl points the kiosk at the ADMIN PC. At install time the NSIS script uses the first line of a 'server-ip.txt' file placed next to the installer, falling back to the baked-in DEFAULT_SERVER_URL in installer.nsh. The installer does NOT prompt for it. Set autoLaunch to false to stop the kiosk starting on Windows login."
 }

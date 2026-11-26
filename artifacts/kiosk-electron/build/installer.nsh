@@ -3,7 +3,7 @@
 ; so the app works immediately after install under any Windows account.
 
 ; Server URL constant — update here if the admin PC LAN IP changes
-!define KIOSK_SERVER_URL "http://172.16.50.47:3000"
+!define KIOSK_SERVER_URL "http://localhost:3000"
 !define KIOSK_AUTO_LAUNCH "true"
 
 !macro customInstall
