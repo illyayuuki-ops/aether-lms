@@ -7,5 +7,6 @@ contextBridge.exposeInMainWorld("aetherKiosk", {
   unlock:      () => ipcRenderer.send("kiosk:unlock"),
   desktopMode: (session) => ipcRenderer.send("kiosk:desktop-mode", session),
   restore:     () => ipcRenderer.send("kiosk:restore"),
+  endSession:  () => ipcRenderer.send("kiosk:end-session"),
   setLocked:   (locked) => ipcRenderer.send("kiosk:set-locked", locked),
 });
