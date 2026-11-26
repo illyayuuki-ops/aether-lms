@@ -107,33 +107,30 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /sessions/active:
-    get:
-      operationId: getActiveSessions
-      tags: [sessions]
-      summary: Get active sessions
-      responses:
-        "200":
-          description: List of active sessions
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ActiveSessionsResponse"
-
-  /sessions/{sessionId}/heartbeat:
+  /sessions/heartbeat:
     post:
       operationId: sessionHeartbeat
       tags: [sessions]
       summary: Session heartbeat
-      parameters:
-        - name: sessionId
-          in: path
-          required: true
-          schema:
-            type: integer
+      description: >
+        Keeps a session alive. Refreshes lastActivity only when `active` is
+        true, and ends the session server-side when the time limit is reached.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sessionId]
+              properties:
+                sessionId:
+                  type: integer
+                active:
+                  type: boolean
+                  description: True when the client observed real user input.
       responses:
         "200":
-          description: Heartbeat recorded
+          description: Heartbeat recorded (or the session has ended)
           content:
             application/json:
               schema:
@@ -585,12 +582,18 @@ components:
     HeartbeatResponse:
       type: object
       properties:
-        sessionId:
-          type: integer
-        lastActivity:
+        success:
+          type: boolean
+        active:
+          type: boolean
+        error:
           type: string
-          format: date-time
-      required: [sessionId, lastActivity]
+          description: Present when the session has ended (not_found, session_ended, time_limit).
+        sessionTimeLimitMinutes:
+          type: number
+        remainingMinutes:
+          type: number
+      required: [active]
 
     AdminLoginRequest:
       type: object
