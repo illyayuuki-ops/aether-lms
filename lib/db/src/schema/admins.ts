@@ -5,6 +5,9 @@ export const adminsTable = pgTable("admins", {
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
   role: text("role").notNull().default("librarian"), // "librarian" | "super_admin"
+  // Hashed recovery code used by the "forgot password" flow. Nullable so that
+  // admins created before this column existed keep working (recovery disabled).
+  secretCode: text("secret_code"),
   isActive: boolean("is_active").notNull().default(true),
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }), // nullable — null = never logged in
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

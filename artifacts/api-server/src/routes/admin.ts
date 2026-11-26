@@ -1,12 +1,8 @@
-import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
+import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { sessionsTable, adminsTable, pcSettingsTable } from "@workspace/db/schema";
 import { eq, and, gte, lte, sql, count, avg } from "drizzle-orm";
 import { z } from "zod";
-import fs from "node:fs";
-import path from "node:path";
-import jwt from "jsonwebtoken";
-import bcrypt from "bcrypt";
 import {
   GetAllSessionsQueryParams,
   GetStatsQueryParams,
@@ -14,52 +10,22 @@ import {
 import studentsRouter from "./students";
 import adminsMgmtRouter from "./admins-mgmt";
 import analyticsRouter from "./analytics";
+import {
+  requireAdmin,
+  signAdminToken,
+  verifyPassword,
+  isBcryptHash,
+  hashPassword,
+  safeEqual,
+} from "../middlewares/auth";
+import { rateLimit } from "../middlewares/rate-limit";
+import { JWT_EXPIRY, MIN_PASSWORD_LENGTH } from "../lib/config";
+import { getSystemSettings, updateSystemSettings } from "../lib/settings";
+import { loadSettings } from "../lib/settings";
 
 const router: IRouter = Router();
 
-function isBcryptHash(value: string): boolean {
-  return value.startsWith("$2a$") || value.startsWith("$2b$") || value.startsWith("$2y$");
-}
-
-async function verifyPassword(plain: string, stored: string): Promise<boolean> {
-  if (isBcryptHash(stored)) {
-    try {
-      return await bcrypt.compare(plain, stored);
-    } catch {
-      return false;
-    }
-  }
-  return plain === stored;
-}
-
-const JWT_SECRET = process.env.JWT_SECRET || "library-jwt-secret-change-me";
-const JWT_EXPIRY = "8h";
 const TOTAL_COMPUTERS = 20;
-
-declare module "express" {
-  interface Request {
-    adminId?: number;
-    adminRole?: string;
-  }
-}
-
-function requireAdmin(req: Request, res: Response, next: NextFunction) {
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith("Bearer ")) {
-    res.status(401).json({ error: "unauthorized", message: "Admin access required." });
-    return;
-  }
-
-  const token = auth.slice(7);
-  try {
-    const payload = jwt.verify(token, JWT_SECRET) as { adminId: number; role: string };
-    req.adminId = payload.adminId;
-    req.adminRole = payload.role;
-    next();
-  } catch {
-    res.status(401).json({ error: "token_expired", message: "Admin session expired. Please log in again." });
-  }
-}
 
 const AdminLoginSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -80,9 +46,25 @@ const BulkPcMappingsSchema = z.object({
   mappings: z.array(PcMappingSchema).min(1, "At least one mapping is required"),
 });
 
+// ─── Rate limiters ───────────────────────────────────────────────────────────
+// Applies to credential endpoints so password guessing / brute force is not
+// free. Keyed by client IP.
+
+const adminLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: "Too many login attempts. Please wait 15 minutes and try again.",
+});
+
+const accountRecoveryLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: "Too many recovery attempts. Please wait 15 minutes and try again.",
+});
+
 // ─── Auth — fully DB-driven, no hardcoded accounts ──────────────────────────
 
-router.post("/login", async (req, res) => {
+router.post("/login", adminLoginLimiter, async (req, res) => {
   const parsed = AdminLoginSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "validation_error", message: parsed.error.message });
@@ -100,16 +82,17 @@ router.post("/login", async (req, res) => {
   if (admin) {
     const passwordValid = await verifyPassword(password, admin.password);
     if (passwordValid) {
+      // Upgrade legacy plaintext admin passwords to bcrypt on successful login.
+      const passwordUpdate = isBcryptHash(admin.password)
+        ? {}
+        : { password: await hashPassword(password) };
+
       await db
         .update(adminsTable)
-        .set({ lastLoginAt: new Date() })
+        .set({ lastLoginAt: new Date(), ...passwordUpdate })
         .where(eq(adminsTable.id, admin.id));
 
-      const token = jwt.sign(
-        { adminId: admin.id, role: admin.role },
-        JWT_SECRET,
-        { expiresIn: JWT_EXPIRY }
-      );
+      const token = signAdminToken({ adminId: admin.id, role: admin.role }, JWT_EXPIRY);
 
       res.json({ token, role: admin.role, username: admin.username, message: "Login successful" });
       return;
@@ -297,76 +280,37 @@ router.get("/computers", requireAdmin, async (_req, res) => {
   });
 
   const total = settings.totalComputers ?? TOTAL_COMPUTERS;
-  res.json({ computers, totalComputers: total, inUse: activeSessions.length, available: total - activeSessions.length });
+  const inUse = activeSessions.length;
+  res.json({
+    computers,
+    totalComputers: total,
+    inUse,
+    // Clamp: stale active rows or a lowered totalComputers must never show a
+    // negative "available" count on the dashboard.
+    available: Math.max(0, total - inUse),
+  });
 });
 
-// ─── System Settings — persisted to disk ─────────────────────────────────────
-
-// Anchor the settings file next to the server install (artifacts/api-server/),
-// not the process CWD — CWD depends on how/where the scheduled task starts us.
-const SETTINGS_FILE = path.join(__dirname, "../../system-settings.json");
-const LEGACY_SETTINGS_FILE = path.join(process.cwd(), "system-settings.json");
-
-// One-time migration: if the new location is missing but the old
-// CWD-anchored file exists, copy it over so existing settings aren't lost.
-function migrateSettingsFile() {
-  try {
-    if (!fs.existsSync(SETTINGS_FILE) && fs.existsSync(LEGACY_SETTINGS_FILE)) {
-      fs.copyFileSync(LEGACY_SETTINGS_FILE, SETTINGS_FILE);
-    }
-  } catch { /* non-critical — defaults will be used */ }
-}
-migrateSettingsFile();
-
-const DEFAULT_SYSTEM_SETTINGS = {
-  inactivityLimitMinutes: 10,
-  sessionTimeLimitMinutes: 60,
-  totalComputers: 20,
-  courses: [
-    "BEED", "BSA", "BSBA", "BSED", "BSHM", "BSIE", "BSIT", "BSMA", "BSP", "BSTM",
-    "SHS", "STEM", "ABM", "HUMSS", "GAS",
-    "TVL - ICT", "TVL - HE", "TVL - IA", "TVL - AFA",
-    "SPORTS", "ARTS & DESIGN",
-    "JHS", "MS", "LS", "KS",
-  ],
-  yearLevels: ["1","2","3","4","5","6","7","8","9","10","11","12"],
-};
-
-export function loadSettings() {
-  try {
-    if (fs.existsSync(SETTINGS_FILE)) {
-      const raw = fs.readFileSync(SETTINGS_FILE, "utf8");
-      return { ...DEFAULT_SYSTEM_SETTINGS, ...JSON.parse(raw) };
-    }
-  } catch { }
-  return { ...DEFAULT_SYSTEM_SETTINGS };
-}
-
-export function saveSettings(settings: typeof DEFAULT_SYSTEM_SETTINGS) {
-  try { fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), "utf8"); } catch { }
-}
-
-let systemSettings = loadSettings();
+// ─── System Settings — persisted to disk (see src/lib/settings.ts) ───────────
 
 router.get("/settings/system", requireAdmin, (_req, res) => {
-  res.json(systemSettings);
+  res.json(getSystemSettings());
+});
+
+const SystemSettingsSchema = z.object({
+  inactivityLimitMinutes: z.number().int().min(1).max(120).optional(),
+  sessionTimeLimitMinutes: z.number().int().min(1).max(480).optional(),
+  totalComputers:         z.number().int().min(1).max(100).optional(),
+  courses:    z.array(z.string().min(1)).min(1).optional(),
+  yearLevels: z.array(z.string().min(1)).min(1).optional(),
 });
 
 router.put("/settings/system", requireAdmin, async (req, res) => {
-  const SystemSettingsSchema = z.object({
-    inactivityLimitMinutes: z.number().int().min(1).max(120).optional(),
-    sessionTimeLimitMinutes: z.number().int().min(1).max(480).optional(),
-    totalComputers:         z.number().int().min(1).max(100).optional(),
-    courses:    z.array(z.string().min(1)).min(1).optional(),
-    yearLevels: z.array(z.string().min(1)).min(1).optional(),
-  });
-
   const parsed = SystemSettingsSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "validation_error", message: parsed.error.message }); return; }
 
-  systemSettings = { ...systemSettings, ...parsed.data };
-  saveSettings(systemSettings);
-  res.json({ success: true, settings: systemSettings });
+  const settings = updateSystemSettings(parsed.data);
+  res.json({ success: true, settings });
 });
 
 // ─── PC Detection ────────────────────────────────────────────────────────────
@@ -450,17 +394,41 @@ router.delete("/settings/pc-mappings/:pcNumber", requireAdmin, async (req, res) 
   }
 });
 
-// ─── Auth Routes (no Bearer required) ────────────────────────────────────────
+// ─── Account recovery (no Bearer required, but rate limited) ────────────────
+//
+// The secret code is a second factor for password reset. It is stored hashed
+// in `admins.secret_code` and compared with a timing-safe equality check.
+// A reset *requires* a valid secret code — there is no unauthenticated path
+// that can change an admin password.
 
-// POST /auth/verify-secret — verify username + secret code for password reset
-router.post("/auth/verify-secret", async (req, res) => {
-  const { username, secretCode } = req.body ?? {};
-  if (!username || !secretCode) {
+const RecoverSchema = z.object({
+  username:   z.string().min(1),
+  secretCode: z.string().min(1),
+});
+
+async function findAdminByRecoveryCode(username: string, secretCode: string) {
+  const [admin] = await db
+    .select()
+    .from(adminsTable)
+    .where(eq(adminsTable.username, username))
+    .limit(1);
+
+  if (!admin || !admin.isActive || !admin.secretCode) return null;
+
+  const ok = await verifyPassword(secretCode, admin.secretCode);
+  return ok ? admin : null;
+}
+
+// POST /auth/verify-secret — verify username + secret code (no password change)
+router.post("/auth/verify-secret", accountRecoveryLimiter, async (req, res) => {
+  const parsed = RecoverSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
     res.status(400).json({ error: "missing_fields", message: "Username and secret code are required." });
     return;
   }
-  const [admin] = await db.select().from(adminsTable).where(eq(adminsTable.username, username)).limit(1);
-  if (!admin || !(admin as any).secretCode || (admin as any).secretCode !== secretCode) {
+
+  const admin = await findAdminByRecoveryCode(parsed.data.username, parsed.data.secretCode);
+  if (!admin) {
     res.status(401).json({ error: "invalid", message: "Username or secret code is incorrect." });
     return;
   }
@@ -468,38 +436,51 @@ router.post("/auth/verify-secret", async (req, res) => {
 });
 
 // POST /auth/reset-password — reset password after secret code verified
-router.post("/auth/reset-password", async (req, res) => {
-  const { username, secretCode, newPassword } = req.body ?? {};
-  if (!username || !secretCode || !newPassword) {
-    res.status(400).json({ error: "missing_fields", message: "All fields are required." });
+const ResetAdminPasswordSchema = RecoverSchema.extend({
+  newPassword: z.string().min(MIN_PASSWORD_LENGTH, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`),
+});
+
+router.post("/auth/reset-password", accountRecoveryLimiter, async (req, res) => {
+  const parsed = ResetAdminPasswordSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: "validation_error", message: parsed.error.errors[0]?.message ?? parsed.error.message });
     return;
   }
-  if (newPassword.length < 4) {
-    res.status(400).json({ error: "weak_password", message: "Password must be at least 4 characters." });
-    return;
-  }
-  const [admin] = await db.select().from(adminsTable).where(eq(adminsTable.username, username)).limit(1);
-  if (!admin || !(admin as any).secretCode || (admin as any).secretCode !== secretCode) {
+
+  const { username, secretCode, newPassword } = parsed.data;
+  const admin = await findAdminByRecoveryCode(username, secretCode);
+  if (!admin) {
     res.status(401).json({ error: "invalid", message: "Username or secret code is incorrect." });
     return;
   }
-  const hashedPassword = await bcrypt.hash(newPassword, 10);
-  await db.update(adminsTable).set({ password: hashedPassword }).where(eq(adminsTable.id, admin.id));
+
+  await db
+    .update(adminsTable)
+    .set({ password: await hashPassword(newPassword) })
+    .where(eq(adminsTable.id, admin.id));
+
   res.json({ success: true, message: "Password reset successfully." });
 });
 
-// POST /auth/first-setup — create first admin when no admins exist
-router.post("/auth/first-setup", async (req, res) => {
+// POST /auth/first-setup — create the first admin when no admins exist.
+// The setup code must be explicitly configured; there is no built-in default.
+router.post("/auth/first-setup", accountRecoveryLimiter, async (req, res) => {
   const { username, password, secretCode, setupCode } = req.body ?? {};
 
-  // Verify setup code from env
-  const validSetupCode = process.env.SETUP_CODE || "setup-aether-2024";
-  if (setupCode !== validSetupCode) {
-    res.status(403).json({ error: "invalid_setup_code", message: "Invalid setup code. Check your .env file." });
+  const validSetupCode = process.env.SETUP_CODE?.trim();
+  if (!validSetupCode) {
+    res.status(503).json({
+      error: "setup_disabled",
+      message: "First-time setup is disabled. Set the SETUP_CODE environment variable to enable it.",
+    });
+    return;
+  }
+  if (!safeEqual(setupCode, validSetupCode)) {
+    res.status(403).json({ error: "invalid_setup_code", message: "Invalid setup code." });
     return;
   }
 
-  // Only allow if no admins exist yet
+  // Only allow if no admins exist yet.
   const [existing] = await db.select({ id: adminsTable.id }).from(adminsTable).limit(1);
   if (existing) {
     res.status(409).json({ error: "already_setup", message: "An admin already exists. Use the login page." });
@@ -510,8 +491,8 @@ router.post("/auth/first-setup", async (req, res) => {
     res.status(400).json({ error: "validation_error", message: "Username must be at least 3 characters." });
     return;
   }
-  if (!password || password.length < 4) {
-    res.status(400).json({ error: "validation_error", message: "Password must be at least 4 characters." });
+  if (!password || password.length < MIN_PASSWORD_LENGTH) {
+    res.status(400).json({ error: "validation_error", message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.` });
     return;
   }
   if (!secretCode) {
@@ -519,11 +500,18 @@ router.post("/auth/first-setup", async (req, res) => {
     return;
   }
 
-  const hashedPassword = await bcrypt.hash(password, 10);
-  await db.insert(adminsTable).values({
-    username, password: hashedPassword, role: "super_admin", isActive: true,
-    ...(({ secretCode } as any)),
-  } as any);
+  try {
+    await db.insert(adminsTable).values({
+      username,
+      password: await hashPassword(password),
+      secretCode: await hashPassword(secretCode),
+      role: "super_admin",
+      isActive: true,
+    });
+  } catch {
+    res.status(500).json({ error: "db_error", message: "Could not create the admin account." });
+    return;
+  }
 
   res.status(201).json({ success: true, message: "Admin account created." });
 });
