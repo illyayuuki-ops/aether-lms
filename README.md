@@ -70,6 +70,20 @@ pnpm db:migrate    # apply pending migrations
 Commit the generated files in `lib/db/drizzle/`. Do **not** use `db:push`
 against a database that holds real data.
 
+> `.gitignore` blocks `*.sql` to keep database dumps out of the repo, with an
+> explicit exception for `lib/db/drizzle/*.sql`. If you add migrations and they
+> do not show up in `git status`, that exception is what to check — CI also
+> fails when a journal entry has no matching `.sql` file.
+
+### Backups
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\backup-db.ps1
+```
+
+Writes a timestamped `pg_dump` to `$HOME\aether-lms-backups` (outside the
+repo, on purpose) and keeps the most recent 14.
+
 ### Seeding
 
 `pnpm db:seed` reads a `pg_dump`-style SQL file. It defaults to the fictional
