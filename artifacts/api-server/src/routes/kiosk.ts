@@ -1,34 +1,7 @@
-import { Router, Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
+import { Router, type Response } from "express";
+import { requireAdmin } from "../middlewares/auth";
 
 const router = Router();
-
-const JWT_SECRET = process.env.JWT_SECRET || "library-jwt-secret-change-me";
-
-declare module "express" {
-  interface Request {
-    adminId?: number;
-    adminRole?: string;
-  }
-}
-
-function requireAdmin(req: Request, res: Response, next: NextFunction) {
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith("Bearer ")) {
-    res.status(401).json({ error: "unauthorized" });
-    return;
-  }
-
-  const token = auth.slice(7);
-  try {
-    const payload = jwt.verify(token, JWT_SECRET) as { adminId: number; role: string };
-    req.adminId = payload.adminId;
-    req.adminRole = payload.role;
-    next();
-  } catch {
-    res.status(401).json({ error: "token_expired" });
-  }
-}
 
 // Store all connected kiosk SSE clients
 const kioskClients = new Map<string, Response[]>();

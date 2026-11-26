@@ -3,26 +3,25 @@ import { db } from "@workspace/db";
 import { sessionsTable, studentsTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
-import { loadSettings } from "../routes/admin";
+import { loadSettings } from "../lib/settings";
+import { hashPassword, verifyPassword, isBcryptHash } from "../middlewares/auth";
+import { rateLimit } from "../middlewares/rate-limit";
+import { MIN_PASSWORD_LENGTH, SESSION_TOKEN_BYTES } from "../lib/config";
 import crypto from "node:crypto";
-import bcrypt from "bcrypt";
 
 const router: IRouter = Router();
 
-function isBcryptHash(value: string): boolean {
-  return value.startsWith("$2a$") || value.startsWith("$2b$") || value.startsWith("$2y$");
-}
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: "Too many login attempts. Please wait a few minutes and try again.",
+});
 
-async function verifyPassword(plain: string, stored: string): Promise<boolean> {
-  if (isBcryptHash(stored)) {
-    try {
-      return await bcrypt.compare(plain, stored);
-    } catch {
-      return false;
-    }
-  }
-  return plain === stored;
-}
+const passwordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: "Too many password attempts. Please wait a few minutes and try again.",
+});
 
 // ─── Validation ───────────────────────────────────────────────────────────────
 
@@ -41,12 +40,23 @@ const RegisterSchema = z.object({
   name:      z.string().min(2, "Name is required"),
   degree:    z.string().min(1, "Course is required"),
   yearLevel: z.string().min(1, "Year level is required"),
-  password:  z.string().min(4, "Password must be at least 4 characters"),
+  password:  z.string().min(MIN_PASSWORD_LENGTH, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`),
 });
 
+// Ownership can be proven three ways:
+//   1. currentPassword  — normal in-session change
+//   2. sessionToken     — change without re-typing the password
+//   3. "first login"    — the account still uses its default password
+//                         (mustChangePassword = true, or the stored password
+//                         literally equals the student ID). This keeps the
+//                         self-service "set my first password" flow working
+//                         without letting anyone reset a real password by
+//                         simply knowing a student ID.
 const ChangePasswordSchema = z.object({
-  studentId:   studentIdSchema,
-  newPassword: z.string().min(4, "Password must be at least 4 characters"),
+  studentId:       studentIdSchema,
+  newPassword:     z.string().min(MIN_PASSWORD_LENGTH, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`),
+  currentPassword: z.string().min(1).optional(),
+  sessionToken:    z.string().min(1).optional(),
 });
 
 // ─── Lookup student ───────────────────────────────────────────────────────────
@@ -81,7 +91,7 @@ router.get("/lookup", async (req, res) => {
 
 // ─── Register (self-service) ──────────────────────────────────────────────────
 
-router.post("/register", async (req, res) => {
+router.post("/register", passwordLimiter, async (req, res) => {
   const parsed = RegisterSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "validation_error", message: parsed.error.errors[0]?.message });
@@ -104,7 +114,7 @@ router.post("/register", async (req, res) => {
     name:               parsed.data.name,
     degree:             parsed.data.degree,
     yearLevel:          parsed.data.yearLevel,
-    password:           await bcrypt.hash(parsed.data.password, 10),
+    password:           await hashPassword(parsed.data.password),
     mustChangePassword: false,
     isActive:           true,
   });
@@ -114,7 +124,7 @@ router.post("/register", async (req, res) => {
 
 // ─── Login ────────────────────────────────────────────────────────────────────
 
-router.post("/login", async (req, res) => {
+router.post("/login", loginLimiter, async (req, res) => {
   const parsed = LoginSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "validation_error", message: parsed.error.errors[0]?.message });
@@ -146,78 +156,114 @@ router.post("/login", async (req, res) => {
     return;
   }
 
+  // Opportunistically upgrade legacy plaintext passwords to bcrypt on a
+  // successful login, so old imported accounts self-heal without a forced
+  // reset. Never blocks the login if the rehash fails.
+  if (!isBcryptHash(student.password)) {
+    try {
+      await db
+        .update(studentsTable)
+        .set({ password: await hashPassword(password) })
+        .where(eq(studentsTable.id, student.id));
+    } catch {
+      /* best effort */
+    }
+  }
+
   const settings = loadSettings();
   const inactivityCutoff = new Date(Date.now() - settings.inactivityLimitMinutes * 60 * 1000);
 
-  // Check if PC already has an active session
-  const [existingPcSession] = await db
-    .select()
-    .from(sessionsTable)
-    .where(and(eq(sessionsTable.computerNumber, computerNumber), eq(sessionsTable.isActive, true)))
-    .limit(1);
+  // Create the session atomically. The read-then-write sequence below used to
+  // race: two simultaneous logins on the same PC could both pass the "in use"
+  // check and create two active sessions. `FOR UPDATE` row locks plus running
+  // everything in one transaction closes that window.
+  let created: { session: typeof sessionsTable.$inferSelect } | { conflict: "pc_in_use" | "already_logged_in" };
 
-  if (existingPcSession) {
-    // If stale (no activity for inactivity limit), close it and proceed
-    if (existingPcSession.lastActivity && existingPcSession.lastActivity < inactivityCutoff) {
-      const now = new Date();
-      await db
-        .update(sessionsTable)
-        .set({
-          isActive: false,
-          logoutTime: now,
-          durationMinutes: Math.round((now.getTime() - existingPcSession.loginTime.getTime()) / 60000),
-          logoutReason: "inactivity",
+  try {
+    created = await db.transaction(async (tx) => {
+      const [existingPcSession] = await tx
+        .select()
+        .from(sessionsTable)
+        .where(and(eq(sessionsTable.computerNumber, computerNumber), eq(sessionsTable.isActive, true)))
+        .limit(1)
+        .for("update");
+
+      if (existingPcSession) {
+        if (existingPcSession.lastActivity && existingPcSession.lastActivity < inactivityCutoff) {
+          const now = new Date();
+          await tx
+            .update(sessionsTable)
+            .set({
+              isActive: false,
+              logoutTime: now,
+              durationMinutes: Math.round((now.getTime() - existingPcSession.loginTime.getTime()) / 60000),
+              logoutReason: "inactivity",
+            })
+            .where(eq(sessionsTable.id, existingPcSession.id));
+        } else {
+          return { conflict: "pc_in_use" as const };
+        }
+      }
+
+      const [existingStudentSession] = await tx
+        .select()
+        .from(sessionsTable)
+        .where(and(eq(sessionsTable.studentId, studentId), eq(sessionsTable.isActive, true)))
+        .limit(1)
+        .for("update");
+
+      if (existingStudentSession) {
+        if (existingStudentSession.lastActivity && existingStudentSession.lastActivity < inactivityCutoff) {
+          const now = new Date();
+          await tx
+            .update(sessionsTable)
+            .set({
+              isActive: false,
+              logoutTime: now,
+              durationMinutes: Math.round((now.getTime() - existingStudentSession.loginTime.getTime()) / 60000),
+              logoutReason: "inactivity",
+            })
+            .where(eq(sessionsTable.id, existingStudentSession.id));
+        } else {
+          return { conflict: "already_logged_in" as const };
+        }
+      }
+
+      const sessionToken = crypto.randomBytes(SESSION_TOKEN_BYTES).toString("hex");
+
+      const [session] = await tx
+        .insert(sessionsTable)
+        .values({
+          studentId:      student.studentId,
+          name:           student.name,
+          degree:         student.degree,
+          yearLevel:      student.yearLevel,
+          computerNumber,
+          loginTime:      new Date(),
+          lastActivity:   new Date(),
+          isActive:       true,
+          sessionToken,
         })
-        .where(eq(sessionsTable.id, existingPcSession.id));
-    } else {
-      res.status(409).json({ error: "pc_in_use", message: "This PC already has an active session." });
-      return;
-    }
+        .returning();
+
+      return { session };
+    });
+  } catch {
+    res.status(500).json({ error: "db_error", message: "Could not start a session. Please try again." });
+    return;
   }
 
-  // Check if student already has an active session elsewhere
-  const [existingStudentSession] = await db
-    .select()
-    .from(sessionsTable)
-    .where(and(eq(sessionsTable.studentId, studentId), eq(sessionsTable.isActive, true)))
-    .limit(1);
-
-  if (existingStudentSession) {
-    // If stale (no activity for inactivity limit), close it and proceed
-    if (existingStudentSession.lastActivity && existingStudentSession.lastActivity < inactivityCutoff) {
-      const now = new Date();
-      await db
-        .update(sessionsTable)
-        .set({
-          isActive: false,
-          logoutTime: now,
-          durationMinutes: Math.round((now.getTime() - existingStudentSession.loginTime.getTime()) / 60000),
-          logoutReason: "inactivity",
-        })
-        .where(eq(sessionsTable.id, existingStudentSession.id));
+  if ("conflict" in created) {
+    if (created.conflict === "pc_in_use") {
+      res.status(409).json({ error: "pc_in_use", message: "This PC already has an active session." });
     } else {
       res.status(409).json({ error: "already_logged_in", message: "You are already logged in on another PC." });
-      return;
     }
+    return;
   }
 
-  // Create session
-  const sessionToken = crypto.randomBytes(32).toString("hex");
-
-  const [session] = await db
-    .insert(sessionsTable)
-    .values({
-      studentId:      student.studentId,
-      name:           student.name,
-      degree:         student.degree,
-      yearLevel:      student.yearLevel,
-      computerNumber,
-      loginTime:      new Date(),
-      lastActivity:   new Date(),
-      isActive:       true,
-      sessionToken,
-    })
-    .returning();
+  const session = created.session;
+  const sessionToken = session.sessionToken;
 
   res.json({
     sessionId:          session.id,
@@ -338,29 +384,71 @@ router.post("/heartbeat", async (req, res) => {
 });
 
 // ─── Change password ──────────────────────────────────────────────────────────
+//
+// Authorization: the caller must prove ownership of the account with EITHER
+// the current password OR a valid, still-active session token. Previously this
+// endpoint accepted only a studentId, so anyone who knew an ID could take over
+// the account.
 
-router.post("/change-password", async (req, res) => {
+router.post("/change-password", passwordLimiter, async (req, res) => {
   const parsed = ChangePasswordSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "validation_error", message: parsed.error.errors[0]?.message });
     return;
   }
 
+  const { studentId, newPassword, currentPassword, sessionToken } = parsed.data;
+
   const [student] = await db
     .select()
     .from(studentsTable)
-    .where(eq(studentsTable.studentId, parsed.data.studentId))
+    .where(eq(studentsTable.studentId, studentId))
     .limit(1);
 
-  if (!student) {
+  if (!student || !student.isActive) {
     res.status(404).json({ error: "not_found", message: "Student not found." });
     return;
   }
 
-  const hashedPassword = await bcrypt.hash(parsed.data.newPassword, 10);
+  let authorized = false;
+
+  if (currentPassword) {
+    authorized = await verifyPassword(currentPassword, student.password);
+  }
+
+  if (!authorized && sessionToken) {
+    const [activeSession] = await db
+      .select({ id: sessionsTable.id })
+      .from(sessionsTable)
+      .where(
+        and(
+          eq(sessionsTable.studentId, studentId),
+          eq(sessionsTable.isActive, true),
+          eq(sessionsTable.sessionToken, sessionToken),
+        ),
+      )
+      .limit(1);
+    authorized = Boolean(activeSession);
+  }
+
+  // First-login / default-password accounts may set their own password without
+  // proving ownership — the "secret" is the student ID they already typed.
+  if (!authorized) {
+    const isDefaultPassword = student.mustChangePassword || student.password === studentId;
+    if (isDefaultPassword) authorized = true;
+  }
+
+  if (!authorized) {
+    res.status(401).json({
+      error: "unauthorized",
+      message: "Your current password or an active session is required to change your password.",
+    });
+    return;
+  }
+
   await db
     .update(studentsTable)
-    .set({ password: hashedPassword, mustChangePassword: false, updatedAt: new Date() })
+    .set({ password: await hashPassword(newPassword), mustChangePassword: false, updatedAt: new Date() })
     .where(eq(studentsTable.id, student.id));
 
   res.json({ success: true });

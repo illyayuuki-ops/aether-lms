@@ -246,23 +246,40 @@ Focus on usage patterns and give one actionable recommendation for the librarian
       return;
     }
 
-    // Call Anthropic API
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type":    "application/json",
-        "x-api-key":       apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model:      "claude-haiku-4-5",
-        max_tokens: 400,
-        messages:   [{ role: "user", content: prompt }],
-      }),
-    });
+    // Call the Anthropic API. Bounded by a timeout so a hung upstream cannot
+    // hold the request open indefinitely, and errors are surfaced rather than
+    // silently rendering "no insights".
+    let response: globalThis.Response;
+    try {
+      response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type":      "application/json",
+          "x-api-key":         apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model:      "claude-haiku-4-5",
+          max_tokens: 400,
+          messages:   [{ role: "user", content: prompt }],
+        }),
+        signal: AbortSignal.timeout(20_000),
+      });
+    } catch (err) {
+      console.error("AI insights request failed:", err);
+      res.status(504).json({ error: "ai_timeout", message: "The insights service did not respond in time." });
+      return;
+    }
 
-    const aiData = await response.json() as any;
-    const text   = aiData.content?.[0]?.text ?? "- No insights generated.";
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      console.error("AI insights upstream error:", response.status, detail.slice(0, 500));
+      res.status(502).json({ error: "ai_upstream_error", message: "The insights service returned an error." });
+      return;
+    }
+
+    const aiData = (await response.json()) as { content?: Array<{ text?: string }> };
+    const text = aiData.content?.[0]?.text ?? "- No insights generated.";
 
     res.json({ insights: text, period });
   } catch (err) {

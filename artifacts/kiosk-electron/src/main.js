@@ -166,9 +166,12 @@ function createBadge(sessionInfo) {
     fullscreenable: false,
     backgroundColor: "#0f172a",
     webPreferences: {
-      contextIsolation: false,
-      nodeIntegration: true,
-      sandbox: false,
+      // The badge is trusted app chrome, but it still must not run with Node
+      // access. It talks to the main process via the shared preload bridge.
+      preload: path.join(__dirname, "preload.cjs"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
     },
   });
 
@@ -188,9 +191,8 @@ function createBadge(sessionInfo) {
   </div>
   <style>@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}</style>
   <script>
-    const { ipcRenderer } = require('electron');
-    document.getElementById('end').onclick  = () => ipcRenderer.send('kiosk:end-session');
-    document.getElementById('back').onclick = () => ipcRenderer.send('kiosk:restore');
+    document.getElementById('end').onclick  = () => window.aetherKiosk.endSession();
+    document.getElementById('back').onclick = () => window.aetherKiosk.restore();
   </script>
 </body>
 </html>`;
@@ -281,7 +283,9 @@ function createWindow() {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      // The preload only uses contextBridge/ipcRenderer, which work in a
+      // sandboxed renderer, so enable the OS-level sandbox too.
+      sandbox: true,
       backgroundThrottling: false,
     },
   });
@@ -298,7 +302,19 @@ function createWindow() {
   });
 
   mainWindow.webContents.on("context-menu", (e) => { if (isLocked || isSessionActive) e.preventDefault(); });
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: "deny" }; });
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    // Only hand http(s) links to the system browser; never launch arbitrary
+    // protocols (file:, smb:, custom handlers) from the renderer.
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+        shell.openExternal(url);
+      }
+    } catch {
+      /* ignore malformed URLs */
+    }
+    return { action: "deny" };
+  });
 
   mainWindow.webContents.on("did-fail-load", (_e, code) => {
     if (code === -3) return;
@@ -317,10 +333,6 @@ function createWindow() {
 
   mainWindow.loadURL(serverUrl).catch((err) => {
     console.error("[kiosk] Failed to load URL:", serverUrl, err);
-  });
-
-  mainWindow.webContents.on("did-fail-load", (_e, code, desc, url) => {
-    console.error("[kiosk] did-fail-load", { code, desc, url });
   });
 
   mainWindow.webContents.on("render-process-gone", (_e, details) => {

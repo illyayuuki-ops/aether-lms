@@ -1,6 +1,5 @@
 {
-  "serverUrl": "http://172.16.50.47:3000",
-  "emergencyPin": "260306",
+  "serverUrl": "http://localhost:3000",
   "autoLaunch": true,
-  "comment": "Change serverUrl to your ADMIN PC's IP address on the school network for student PCs. Set autoLaunch to false to disable auto-start on Windows login. On the admin PC itself localhost also works, but the LAN IP is equally correct, so this single value is safe everywhere."
+  "comment": "serverUrl is the ADMIN PC address on the school network. The installer prompts for it and writes the real value to %APPDATA%/Aether LMS Kiosk/config.json, so the committed default only needs to work on the admin PC itself. Set autoLaunch to false to stop the kiosk starting on Windows login."
 }

@@ -21,13 +21,10 @@ export function useAdminAuth() {
     window.location.href = "/admin/login";
   };
 
-  // Both Bearer token + role header attached to every request
-  const authHeaders = token
-    ? {
-        Authorization: `Bearer ${token}`,
-        "x-admin-role": localStorage.getItem("admin_role") ?? "librarian",
-      }
-    : {};
+  // Only the Bearer token is needed. The server derives the caller's role
+  // from the signed token — sending a role header was both unnecessary and a
+  // privilege-escalation footgun (the server used to trust it).
+  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
   return { token, role, isAuthenticated: !!token, login, logout, authHeaders };
 }
